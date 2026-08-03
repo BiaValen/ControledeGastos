@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Gastos</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <nav class="sidebar">
+      <div class="brand">💰 Gastos</div>
+      <button class="nav-item active" data-view="mes">Mês atual</button>
+      <button class="nav-item" data-view="contas">Contas</button>
+      <button class="nav-item" data-view="categorias">Categorias</button>
+      <button class="nav-item" data-view="historico">Histórico</button>
+
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="btn-theme-toggle">
+          <span id="theme-icon">🌙</span>
+          <span id="theme-label">Tema escuro</span>
+        </button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <!-- ===== VIEW: MÊS ===== -->
+      <section id="view-mes" class="view active">
+        <header class="view-header">
+          <div class="month-nav">
+            <button id="mes-prev" class="icon-btn">‹</button>
+            <h1 id="mes-titulo">—</h1>
+            <button id="mes-next" class="icon-btn">›</button>
+          </div>
+        </header>
+
+        <div class="cards-resumo">
+          <div class="card stat">
+            <span class="stat-label">Ganhos</span>
+            <span class="stat-value positivo" id="stat-ganhos">R$ 0,00</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Pago</span>
+            <span class="stat-value" id="stat-pago">R$ 0,00</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Pendente</span>
+            <span class="stat-value alerta" id="stat-pendente">R$ 0,00</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Gastos avulsos</span>
+            <span class="stat-value" id="stat-avulsos">R$ 0,00</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Saldo</span>
+            <span class="stat-value" id="stat-saldo">R$ 0,00</span>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Contas do mês</h2>
+            </div>
+            <table class="table" id="tabela-contas">
+              <thead>
+                <tr><th>Paga</th><th>Conta</th><th>Categoria</th><th>Venc.</th><th>Valor</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-header">
+                <h2>Ganhos</h2>
+                <button class="btn-small" id="btn-add-ganho">+ Adicionar</button>
+              </div>
+              <table class="table" id="tabela-ganhos">
+                <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th></th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <h2>Gastos avulsos</h2>
+                <button class="btn-small" id="btn-add-avulso">+ Adicionar</button>
+              </div>
+              <table class="table" id="tabela-avulsos">
+                <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th></th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: CONTAS ===== -->
+      <section id="view-contas" class="view">
+        <header class="view-header">
+          <h1>Contas cadastradas</h1>
+          <button class="btn" id="btn-add-conta">+ Nova conta</button>
+        </header>
+        <div class="panel">
+          <table class="table" id="tabela-contas-cadastro">
+            <thead><tr><th>Nome</th><th>Tipo</th><th>Categoria</th><th>Venc.</th><th>Valor padrão</th><th>Ativa</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: CATEGORIAS ===== -->
+      <section id="view-categorias" class="view">
+        <header class="view-header">
+          <h1>Categorias</h1>
+          <button class="btn" id="btn-add-categoria">+ Nova categoria</button>
+        </header>
+        <div class="panel">
+          <table class="table" id="tabela-categorias">
+            <thead><tr><th>Cor</th><th>Nome</th><th>Tipo</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: HISTÓRICO ===== -->
+      <section id="view-historico" class="view">
+        <header class="view-header">
+          <h1>Histórico retroativo</h1>
+        </header>
+
+        <div class="charts-row">
+          <div class="panel">
+            <div class="panel-header"><h2>Ganhos x Gastos por mês</h2></div>
+            <div class="chart-legend">
+              <span><i style="background:var(--green)"></i>Ganhos</span>
+              <span><i style="background:var(--red)"></i>Gastos (pago + avulsos)</span>
+            </div>
+            <div class="chart-wrap" id="chart-ganhos-gastos"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><h2>Saldo por mês</h2></div>
+            <div class="chart-legend">
+              <span><i style="background:var(--green)"></i>Positivo</span>
+              <span><i style="background:var(--red)"></i>Negativo</span>
+            </div>
+            <div class="chart-wrap" id="chart-saldo"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <table class="table" id="tabela-historico">
+            <thead><tr><th>Mês</th><th>Ganhos</th><th>Pago</th><th>Pendente</th><th>Avulsos</th><th>Saldo</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ===== MODAL genérico ===== -->
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal" id="modal">
+      <h3 id="modal-title">Título</h3>
+      <div id="modal-body"></div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="modal-cancel">Cancelar</button>
+        <button class="btn" id="modal-save">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
