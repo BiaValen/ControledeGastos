@@ -1,6 +1,6 @@
 // Parser tolerante pra OFX de banco brasileiro (formato SGML antigo, tags sem fechamento).
 // Não usa XML parser de verdade porque a maioria dos extratos de banco vem malformado.
-const crypto = require('crypto');
+const { finalizarHashes } = require('./transacao-utils');
 
 function pegarCampo(bloco, tag) {
   const m = bloco.match(new RegExp(`<${tag}>([^<\\r\\n]+)`, 'i'));
@@ -12,14 +12,9 @@ function dataParaISO(raw) {
   return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
 }
 
-function hashTransacao(t) {
-  if (t.fitid) return crypto.createHash('md5').update(`fitid:${t.fitid}`).digest('hex');
-  return crypto.createHash('md5').update(`${t.data}|${t.valor}|${t.descricao}`).digest('hex');
-}
-
 function parseOfx(conteudo) {
   const blocos = conteudo.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi) || [];
-  return blocos
+  const transacoes = blocos
     .map((bloco) => {
       const dataISO = dataParaISO(pegarCampo(bloco, 'DTPOSTED'));
       const valorRaw = pegarCampo(bloco, 'TRNAMT');
@@ -27,11 +22,10 @@ function parseOfx(conteudo) {
       const descricao = (pegarCampo(bloco, 'MEMO') || pegarCampo(bloco, 'NAME') || '').replace(/\s+/g, ' ').trim();
       const fitid = pegarCampo(bloco, 'FITID');
       if (!dataISO || valor === null || !descricao) return null;
-      const t = { data: dataISO, valor, descricao, fitid };
-      t.hash = hashTransacao(t);
-      return t;
+      return { data: dataISO, valor, descricao, fitid };
     })
     .filter(Boolean);
+  return finalizarHashes(transacoes);
 }
 
 module.exports = { parseOfx };

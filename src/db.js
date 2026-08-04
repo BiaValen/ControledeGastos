@@ -82,7 +82,9 @@ CREATE TABLE IF NOT EXISTS transacoes_importadas (
   descricao TEXT NOT NULL,
   valor REAL NOT NULL,
   categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
-  hash TEXT NOT NULL UNIQUE
+  hash TEXT NOT NULL,
+  fatura_ano INTEGER,
+  fatura_mes INTEGER
 );
 `);
 
@@ -96,6 +98,41 @@ if (!colunasGanhos.includes('fonte_id')) {
 const colunasContas = db.prepare("PRAGMA table_info(contas)").all().map((c) => c.name);
 if (!colunasContas.includes('eh_cartao')) {
   db.exec('ALTER TABLE contas ADD COLUMN eh_cartao INTEGER NOT NULL DEFAULT 0');
+}
+
+// migração: separa "data da compra original" de "em qual fatura ela cai" (parcela de
+// compra antiga entra na fatura do mês atual, não no mês da compra), e tira qualquer
+// UNIQUE de hash — importar uma fatura agora sempre SUBSTITUI o que já existia pra
+// aquele mês/conta, em vez de tentar adivinhar duplicata (isso já causou dado sumido
+// e categorização perdida por causa de coincidência de data/valor/descrição).
+const sqlTransacoes = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='transacoes_importadas'").get();
+const precisaRebuild = sqlTransacoes && /UNIQUE/i.test(sqlTransacoes.sql);
+if (precisaRebuild) {
+  const colunasAtuais = db.prepare("PRAGMA table_info(transacoes_importadas)").all().map((c) => c.name);
+  const temFatura = colunasAtuais.includes('fatura_ano');
+  db.exec(`
+    CREATE TABLE transacoes_importadas_novo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conta_id INTEGER REFERENCES contas(id) ON DELETE SET NULL,
+      data TEXT NOT NULL,
+      descricao TEXT NOT NULL,
+      valor REAL NOT NULL,
+      categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
+      hash TEXT NOT NULL,
+      fatura_ano INTEGER,
+      fatura_mes INTEGER
+    );
+    INSERT INTO transacoes_importadas_novo (id, conta_id, data, descricao, valor, categoria_id, hash${temFatura ? ', fatura_ano, fatura_mes' : ''})
+      SELECT id, conta_id, data, descricao, valor, categoria_id, hash${temFatura ? ', fatura_ano, fatura_mes' : ''} FROM transacoes_importadas;
+    DROP TABLE transacoes_importadas;
+    ALTER TABLE transacoes_importadas_novo RENAME TO transacoes_importadas;
+  `);
+} else {
+  const colunasTransacoes = db.prepare("PRAGMA table_info(transacoes_importadas)").all().map((c) => c.name);
+  if (!colunasTransacoes.includes('fatura_ano')) {
+    db.exec('ALTER TABLE transacoes_importadas ADD COLUMN fatura_ano INTEGER');
+    db.exec('ALTER TABLE transacoes_importadas ADD COLUMN fatura_mes INTEGER');
+  }
 }
 
 const categoriaCount = db.prepare('SELECT COUNT(*) AS n FROM categorias').get().n;

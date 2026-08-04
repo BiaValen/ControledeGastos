@@ -3,6 +3,19 @@ const path = require('path');
 const fs = require('fs');
 const api = require('./src/api');
 const { parseOfx } = require('./src/ofx');
+const { parseCsv } = require('./src/csv');
+
+// detecta o encoding real do arquivo em vez de assumir um fixo:
+// CSV de banco costuma vir em UTF-8 (às vezes com BOM), OFX antigo costuma vir em latin1/cp1252
+function lerArquivoTexto(caminho) {
+  const buffer = fs.readFileSync(caminho);
+  if (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
+    return buffer.subarray(3).toString('utf8');
+  }
+  const comoUtf8 = buffer.toString('utf8');
+  if (!comoUtf8.includes('�')) return comoUtf8;
+  return buffer.toString('latin1');
+}
 
 function registerHandlers() {
   const handlers = {
@@ -38,21 +51,27 @@ function registerHandlers() {
     'regras:list': () => api.listRegras(),
     'regras:criar': (_e, r) => api.criarRegra(r),
     'regras:remover': (_e, id) => api.removerRegra(id),
+    'regras:reaplicar': () => api.reaplicarRegras(),
 
     'extrato:selecionarArquivo': async (e) => {
       const win = BrowserWindow.fromWebContents(e.sender);
       const resultado = await dialog.showOpenDialog(win, {
-        title: 'Selecionar extrato OFX',
-        filters: [{ name: 'Extrato OFX', extensions: ['ofx'] }],
+        title: 'Selecionar extrato (OFX ou CSV)',
+        filters: [
+          { name: 'Extrato (OFX ou CSV)', extensions: ['ofx', 'csv'] },
+          { name: 'OFX', extensions: ['ofx'] },
+          { name: 'CSV', extensions: ['csv'] },
+        ],
         properties: ['openFile'],
       });
       if (resultado.canceled || resultado.filePaths.length === 0) return null;
       return resultado.filePaths[0];
     },
-    'extrato:importar': (_e, contaId, caminhoArquivo) => {
-      const conteudo = fs.readFileSync(caminhoArquivo, 'latin1');
-      const transacoes = parseOfx(conteudo);
-      return api.importarExtrato(contaId, transacoes);
+    'extrato:importar': (_e, contaId, caminhoArquivo, faturaAno, faturaMes) => {
+      const conteudo = lerArquivoTexto(caminhoArquivo);
+      const ehCsv = caminhoArquivo.toLowerCase().endsWith('.csv');
+      const transacoes = ehCsv ? parseCsv(conteudo) : parseOfx(conteudo);
+      return api.importarExtrato(contaId, transacoes, faturaAno, faturaMes);
     },
     'extrato:listTransacoes': (_e, contaId, ano, mes) => api.listTransacoes(contaId, ano, mes),
     'extrato:atualizarCategoria': (_e, id, categoriaId, salvarRegra) => api.atualizarCategoriaTransacao(id, categoriaId, salvarRegra),

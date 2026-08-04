@@ -207,41 +207,73 @@ function categorizarPorRegra(descricao) {
   const match = regras.find((r) => desc.includes(r.padrao));
   return match ? match.categoria_id : null;
 }
+// aplica as regras atuais em cima de transações já importadas que ainda estão sem categoria
+// (útil depois de criar/corrigir uma regra, ou pra recuperar categorização perdida)
+function reaplicarRegras() {
+  const semCategoria = db.prepare('SELECT id, descricao FROM transacoes_importadas WHERE categoria_id IS NULL').all();
+  const update = db.prepare('UPDATE transacoes_importadas SET categoria_id = ? WHERE id = ?');
+  let atualizadas = 0;
+  const tx = db.transaction((linhas) => {
+    for (const t of linhas) {
+      const categoriaId = categorizarPorRegra(t.descricao);
+      if (categoriaId) { update.run(categoriaId, t.id); atualizadas++; }
+    }
+  });
+  tx(semCategoria);
+  return { verificadas: semCategoria.length, atualizadas };
+}
 
-// ---------- Extratos importados (OFX) ----------
-function importarExtrato(contaId, transacoesParsed) {
+// ---------- Extratos importados (OFX/CSV) ----------
+// faturaAno/faturaMes = em qual fatura essa transação cai (pode ser diferente do mês
+// da compra em si, ex: parcela de uma compra antiga que só é cobrada agora).
+// Importar substitui inteiro o que já existia pra essa conta+fatura — sem tentar
+// adivinhar duplicata (data/valor/descrição podem coincidir por acaso e isso já
+// causou transação sumida e categoria perdida). A categoria que já tinha sido
+// definida manualmente é preservada quando a mesma descrição+valor aparece de novo.
+function importarExtrato(contaId, transacoesParsed, faturaAno, faturaMes) {
+  const categoriasAntigas = db.prepare(`
+    SELECT descricao, valor, categoria_id FROM transacoes_importadas
+    WHERE conta_id = ? AND fatura_ano = ? AND fatura_mes = ? AND categoria_id IS NOT NULL
+  `).all(contaId, faturaAno, faturaMes);
+  const categoriaSalva = new Map();
+  for (const c of categoriasAntigas) categoriaSalva.set(`${c.descricao}|${c.valor}`, c.categoria_id);
+
+  const del = db.prepare('DELETE FROM transacoes_importadas WHERE conta_id = ? AND fatura_ano = ? AND fatura_mes = ?');
   const insert = db.prepare(`
-    INSERT OR IGNORE INTO transacoes_importadas (conta_id, data, descricao, valor, categoria_id, hash)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO transacoes_importadas (conta_id, data, descricao, valor, categoria_id, hash, fatura_ano, fatura_mes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   let importadas = 0;
-  let duplicadas = 0;
   const tx = db.transaction((transacoes) => {
+    del.run(contaId, faturaAno, faturaMes);
     for (const t of transacoes) {
-      const categoriaId = categorizarPorRegra(t.descricao);
-      const info = insert.run(contaId || null, t.data, t.descricao, t.valor, categoriaId, t.hash);
-      if (info.changes > 0) importadas++;
-      else duplicadas++;
+      const categoriaId = categoriaSalva.get(`${t.descricao}|${t.valor}`) || categorizarPorRegra(t.descricao) || null;
+      insert.run(contaId || null, t.data, t.descricao, t.valor, categoriaId, t.hash, faturaAno, faturaMes);
+      importadas++;
     }
   });
   tx(transacoesParsed);
-  return { importadas, duplicadas, total: transacoesParsed.length };
+  return { importadas, total: transacoesParsed.length };
 }
 function listTransacoes(contaId, ano, mes) {
-  const prefix = `${ano}-${String(mes).padStart(2, '0')}`;
   return db.prepare(`
     SELECT transacoes_importadas.*, categorias.nome AS categoria_nome, categorias.cor AS categoria_cor
     FROM transacoes_importadas LEFT JOIN categorias ON categorias.id = transacoes_importadas.categoria_id
-    WHERE conta_id = ? AND data LIKE ?
+    WHERE conta_id = ? AND fatura_ano = ? AND fatura_mes = ?
     ORDER BY data DESC
-  `).all(contaId, `${prefix}%`);
+  `).all(contaId, ano, mes);
+}
+// tira o "(Parcela X/Y)" antes de virar regra, senão a regra só bate com essa parcela específica
+// e nunca padroniza as outras parcelas da mesma compra/estabelecimento
+function removerSufixoParcela(descricao) {
+  return descricao.replace(/\s*\(Parcela\s+\d+\/\d+\)\s*$/i, '').trim();
 }
 function atualizarCategoriaTransacao(id, categoriaId, salvarRegra) {
   const transacao = db.prepare('SELECT * FROM transacoes_importadas WHERE id = ?').get(id);
   if (!transacao) throw new Error('Transação não encontrada');
   db.prepare('UPDATE transacoes_importadas SET categoria_id = ? WHERE id = ?').run(categoriaId, id);
   if (salvarRegra && categoriaId) {
-    criarRegra({ padrao: transacao.descricao, categoria_id: categoriaId });
+    criarRegra({ padrao: removerSufixoParcela(transacao.descricao), categoria_id: categoriaId });
   }
 }
 function removerTransacao(id) {
@@ -249,11 +281,10 @@ function removerTransacao(id) {
 }
 // soma só os débitos (valores negativos no extrato = gasto); pagamentos/créditos não entram
 function somaTransacoesDoMes(contaId, ano, mes) {
-  const prefix = `${ano}-${String(mes).padStart(2, '0')}`;
   const row = db.prepare(`
     SELECT COALESCE(SUM(-valor), 0) AS total FROM transacoes_importadas
-    WHERE conta_id = ? AND data LIKE ? AND valor < 0
-  `).get(contaId, `${prefix}%`);
+    WHERE conta_id = ? AND fatura_ano = ? AND fatura_mes = ? AND valor < 0
+  `).get(contaId, ano, mes);
   return row.total;
 }
 function aplicarSomaAoLancamento(contaId, ano, mes) {
@@ -302,7 +333,7 @@ module.exports = {
   listFontesRenda, criarFonteRenda, atualizarFonteRenda, removerFonteRenda,
   listGanhos, listGanhosDoMes, criarGanho, atualizarGanho, removerGanho,
   listGastosAvulsosDoMes, criarGastoAvulso, atualizarGastoAvulso, removerGastoAvulso,
-  listRegras, criarRegra, removerRegra, categorizarPorRegra,
+  listRegras, criarRegra, removerRegra, categorizarPorRegra, reaplicarRegras,
   importarExtrato, listTransacoes, atualizarCategoriaTransacao, removerTransacao,
   somaTransacoesDoMes, aplicarSomaAoLancamento,
   resumoMes, listHistoricoMeses,

@@ -10,6 +10,36 @@ function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// substitui window.alert/confirm — diálogo nativo do Electron trava o foco da janela
+// por um tempo depois de fechar, e os <select> ficam sem abrir até o foco voltar.
+function mostrarToast(mensagem) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = mensagem;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 4500);
+}
+
+function confirmarAcao(mensagem) {
+  return new Promise((resolve) => {
+    document.getElementById('confirm-mensagem').textContent = mensagem;
+    const backdrop = document.getElementById('confirm-backdrop');
+    const okBtn = document.getElementById('confirm-ok');
+    const cancelBtn = document.getElementById('confirm-cancelar');
+    backdrop.classList.add('active');
+    const limpar = () => {
+      backdrop.classList.remove('active');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+    };
+    const onOk = () => { limpar(); resolve(true); };
+    const onCancel = () => { limpar(); resolve(false); };
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
+
 // ---------------- Tema claro/escuro ----------------
 function aplicarTema(tema) {
   document.documentElement.setAttribute('data-theme', tema === 'claro' ? 'light' : 'dark');
@@ -609,15 +639,17 @@ async function carregarTransacoesExtrato() {
   document.getElementById('extrato-sem-categoria').textContent = transacoes.filter((t) => t.valor < 0 && !t.categoria_id).length;
 
   const opcoesDespesa = opcoesCategorias('despesa');
+  const opcoesGanho = opcoesCategorias('ganho');
   const tbody = document.querySelector('#tabela-transacoes tbody');
   tbody.innerHTML = transacoes.length === 0
     ? '<tr><td colspan="5" class="empty-hint">Nenhuma transação importada pra esse mês ainda.</td></tr>'
     : '';
   transacoes.forEach((t) => {
     const tr = document.createElement('tr');
+    const opcoes = t.valor < 0 ? opcoesDespesa : opcoesGanho;
     const selectHtml = `<select data-id="${t.id}" data-action="cat-transacao">
       <option value="">Sem categoria</option>
-      ${opcoesDespesa.map((o) => `<option value="${o.value}" ${o.value === t.categoria_id ? 'selected' : ''}>${o.label}</option>`).join('')}
+      ${opcoes.map((o) => `<option value="${o.value}" ${o.value === t.categoria_id ? 'selected' : ''}>${o.label}</option>`).join('')}
     </select>`;
     tr.innerHTML = `
       <td>${t.data.slice(8, 10)}/${t.data.slice(5, 7)}</td>
@@ -643,9 +675,9 @@ async function carregarTransacoesExtrato() {
       const id = parseInt(e.target.dataset.id);
       const select = tbody.querySelector(`select[data-id="${id}"]`);
       const categoriaId = select.value ? parseInt(select.value) : null;
-      if (!categoriaId) { alert('Escolhe uma categoria antes de salvar a regra.'); return; }
+      if (!categoriaId) { mostrarToast('Escolhe uma categoria antes de salvar a regra.'); return; }
       await api.extrato.atualizarCategoria(id, categoriaId, true);
-      alert('Regra salva! Próximas importações com essa descrição já vêm categorizadas.');
+      mostrarToast('Regra salva! Próximas importações com essa descrição já vêm categorizadas.');
       carregarRegras();
     });
   });
@@ -659,6 +691,7 @@ async function carregarTransacoesExtrato() {
 
 async function carregarRegras() {
   const regras = await api.regras.list();
+  document.getElementById('regras-contador').textContent = regras.length;
   const tbody = document.querySelector('#tabela-regras tbody');
   tbody.innerHTML = regras.length === 0
     ? '<tr><td colspan="3" class="empty-hint">Nenhuma regra ainda.</td></tr>'
@@ -679,6 +712,11 @@ async function carregarRegras() {
     });
   });
 }
+
+document.getElementById('regras-toggle').addEventListener('click', () => {
+  document.getElementById('regras-conteudo').classList.toggle('aberto');
+  document.getElementById('regras-chevron').classList.toggle('aberto');
+});
 
 async function carregarExtratosPagina() {
   categoriasCache = await api.categorias.list();
@@ -703,20 +741,22 @@ document.getElementById('extrato-mes-next').addEventListener('click', () => {
 });
 
 document.getElementById('btn-importar-ofx').addEventListener('click', async () => {
-  if (!estadoExtrato.contaId) { alert('Cadastre uma conta primeiro (aba Contas).'); return; }
+  if (!estadoExtrato.contaId) { mostrarToast('Cadastre uma conta primeiro (aba Contas).'); return; }
   const caminho = await api.extrato.selecionarArquivo();
   if (!caminho) return;
-  const resultado = await api.extrato.importar(estadoExtrato.contaId, caminho);
-  alert(`${resultado.importadas} transação(ões) nova(s) importada(s). ${resultado.duplicadas} já existiam e foram ignoradas.`);
+  const confirmado = await confirmarAcao(`Importar esse arquivo como a fatura de ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano}? Isso SUBSTITUI inteiro o que já tinha sido importado pra essa conta nesse mês (categoria já definida é preservada quando a mesma descrição+valor aparecer de novo).`);
+  if (!confirmado) return;
+  const resultado = await api.extrato.importar(estadoExtrato.contaId, caminho, estadoExtrato.ano, estadoExtrato.mes);
+  mostrarToast(`${resultado.importadas} transação(ões) importada(s) pra ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano}.`);
   carregarTransacoesExtrato();
 });
 
 document.getElementById('btn-aplicar-fatura').addEventListener('click', async () => {
   if (!estadoExtrato.contaId) return;
-  const confirmado = confirm(`Usar o total das transações de ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano} como valor da fatura desse mês? Isso substitui o valor atual do lançamento.`);
+  const confirmado = await confirmarAcao(`Usar o total das transações de ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano} como valor da fatura desse mês? Isso substitui o valor atual do lançamento.`);
   if (!confirmado) return;
   const soma = await api.extrato.aplicarSomaAoLancamento(estadoExtrato.contaId, estadoExtrato.ano, estadoExtrato.mes);
-  alert(`Valor da fatura atualizado pra ${fmtMoeda(soma)}.`);
+  mostrarToast(`Valor da fatura atualizado pra ${fmtMoeda(soma)}.`);
 });
 
 document.getElementById('btn-add-regra').addEventListener('click', () => {
@@ -727,6 +767,12 @@ document.getElementById('btn-add-regra').addEventListener('click', () => {
     await api.regras.criar(dados);
     carregarRegras();
   });
+});
+
+document.getElementById('btn-reaplicar-regras').addEventListener('click', async () => {
+  const resultado = await api.regras.reaplicar();
+  mostrarToast(`${resultado.atualizadas} transação(ões) categorizada(s) de ${resultado.verificadas} que estavam sem categoria.`);
+  carregarTransacoesExtrato();
 });
 
 // ---------------- Boot ----------------

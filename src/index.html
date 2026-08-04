@@ -196,7 +196,7 @@
       <section id="view-extratos" class="view">
         <header class="view-header">
           <h1>Extratos importados</h1>
-          <button class="btn" id="btn-importar-ofx">+ Importar OFX</button>
+          <button class="btn" id="btn-importar-ofx">+ Importar extrato</button>
         </header>
 
         <div class="extrato-controles">
@@ -228,15 +228,21 @@
         </div>
 
         <div class="panel">
-          <div class="panel-header">
-            <h2>Regras de categorização</h2>
-            <button class="btn-small" id="btn-add-regra">+ Nova regra</button>
+          <button class="panel-header collapsible-header" id="regras-toggle" type="button">
+            <h2>Regras de categorização <span class="badge-count" id="regras-contador"></span></h2>
+            <span class="chevron" id="regras-chevron">▸</span>
+          </button>
+          <div class="collapsible-content" id="regras-conteudo">
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-bottom:12px;">
+              <button class="btn-small" id="btn-reaplicar-regras">🔁 Reaplicar às sem categoria</button>
+              <button class="btn-small" id="btn-add-regra">+ Nova regra</button>
+            </div>
+            <p class="empty-hint" style="padding-top:0">Quando uma descrição do extrato contém o padrão, a categoria é aplicada sozinha nas próximas importações.</p>
+            <table class="table" id="tabela-regras">
+              <thead><tr><th>Padrão</th><th>Categoria</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
           </div>
-          <p class="empty-hint" style="padding-top:0">Quando uma descrição do extrato contém o padrão, a categoria é aplicada sozinha nas próximas importações.</p>
-          <table class="table" id="tabela-regras">
-            <thead><tr><th>Padrão</th><th>Categoria</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
         </div>
       </section>
     </main>
@@ -253,6 +259,20 @@
       </div>
     </div>
   </div>
+
+  <!-- ===== MODAL de confirmação (substitui window.confirm) ===== -->
+  <div class="modal-backdrop" id="confirm-backdrop">
+    <div class="modal" id="confirm-modal" style="width:420px;">
+      <p id="confirm-mensagem" style="margin-top:0;"></p>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="confirm-cancelar">Cancelar</button>
+        <button class="btn" id="confirm-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== notificações (substitui window.alert) ===== -->
+  <div id="toast-container"></div>
 
   <script src="renderer.js"></script>
 </body>

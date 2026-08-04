@@ -40,10 +40,11 @@ contextBridge.exposeInMainWorld('gastosAPI', {
     list: () => ipcRenderer.invoke('regras:list'),
     criar: (r) => ipcRenderer.invoke('regras:criar', r),
     remover: (id) => ipcRenderer.invoke('regras:remover', id),
+    reaplicar: () => ipcRenderer.invoke('regras:reaplicar'),
   },
   extrato: {
     selecionarArquivo: () => ipcRenderer.invoke('extrato:selecionarArquivo'),
-    importar: (contaId, caminho) => ipcRenderer.invoke('extrato:importar', contaId, caminho),
+    importar: (contaId, caminho, faturaAno, faturaMes) => ipcRenderer.invoke('extrato:importar', contaId, caminho, faturaAno, faturaMes),
     listTransacoes: (contaId, ano, mes) => ipcRenderer.invoke('extrato:listTransacoes', contaId, ano, mes),
     atualizarCategoria: (id, categoriaId, salvarRegra) => ipcRenderer.invoke('extrato:atualizarCategoria', id, categoriaId, salvarRegra),
     removerTransacao: (id) => ipcRenderer.invoke('extrato:removerTransacao', id),
