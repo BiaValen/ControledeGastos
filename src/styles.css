@@ -285,6 +285,15 @@ body {
 
 .empty-hint { color: var(--text-dim); font-size: 13px; padding: 10px 0; }
 
+.extrato-controles {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+.extrato-controles select { min-width: 220px; }
+.extrato-controles .month-nav h1 { text-align: left; text-transform: capitalize; }
+
 .charts-row {
   display: grid;
   grid-template-columns: 1.3fr 1fr;

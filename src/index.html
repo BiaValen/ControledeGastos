@@ -15,6 +15,7 @@
         <button class="nav-item" data-view="contas">Contas</button>
         <button class="nav-item" data-view="categorias">Categorias</button>
         <button class="nav-item" data-view="historico">Histórico</button>
+        <button class="nav-item" data-view="extratos">Extratos</button>
       </div>
       <button class="theme-toggle-icon" id="btn-theme-toggle" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
         <span id="theme-icon">🌙</span>
@@ -186,6 +187,54 @@
         <div class="panel">
           <table class="table" id="tabela-historico">
             <thead><tr><th>Mês</th><th>Ganhos</th><th>Pago</th><th>Pendente</th><th>Avulsos</th><th>Saldo</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: EXTRATOS ===== -->
+      <section id="view-extratos" class="view">
+        <header class="view-header">
+          <h1>Extratos importados</h1>
+          <button class="btn" id="btn-importar-ofx">+ Importar OFX</button>
+        </header>
+
+        <div class="extrato-controles">
+          <div class="field" style="margin-bottom:0">
+            <label>Conta</label>
+            <select id="extrato-select-conta"></select>
+          </div>
+          <div class="month-nav">
+            <button id="extrato-mes-prev" class="icon-btn">‹</button>
+            <h1 id="extrato-mes-titulo" style="font-size:16px; min-width:160px;">—</h1>
+            <button id="extrato-mes-next" class="icon-btn">›</button>
+          </div>
+        </div>
+
+        <div class="cards-resumo" style="grid-template-columns: repeat(3, 1fr); max-width: 620px;">
+          <div class="card stat"><span class="stat-label">Total gasto no mês</span><span class="stat-value" id="extrato-total-gasto">R$ 0,00</span></div>
+          <div class="card stat"><span class="stat-label">Sem categoria</span><span class="stat-value alerta" id="extrato-sem-categoria">0</span></div>
+          <div class="card stat" style="justify-content:center">
+            <button class="btn-small" id="btn-aplicar-fatura">Usar como valor da fatura deste mês</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><h2>Transações do mês</h2></div>
+          <table class="table" id="tabela-transacoes">
+            <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Regras de categorização</h2>
+            <button class="btn-small" id="btn-add-regra">+ Nova regra</button>
+          </div>
+          <p class="empty-hint" style="padding-top:0">Quando uma descrição do extrato contém o padrão, a categoria é aplicada sozinha nas próximas importações.</p>
+          <table class="table" id="tabela-regras">
+            <thead><tr><th>Padrão</th><th>Categoria</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>

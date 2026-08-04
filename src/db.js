@@ -67,6 +67,22 @@ CREATE TABLE IF NOT EXISTS gastos_avulsos (
   categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
   pago INTEGER NOT NULL DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS regras_categorizacao (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  padrao TEXT NOT NULL UNIQUE,
+  categoria_id INTEGER NOT NULL REFERENCES categorias(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS transacoes_importadas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conta_id INTEGER REFERENCES contas(id) ON DELETE SET NULL,
+  data TEXT NOT NULL,
+  descricao TEXT NOT NULL,
+  valor REAL NOT NULL,
+  categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
+  hash TEXT NOT NULL UNIQUE
+);
 `);
 
 // migração: bancos criados antes da tabela fontes_renda não têm a coluna fonte_id em ganhos

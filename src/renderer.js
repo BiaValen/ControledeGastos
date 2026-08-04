@@ -37,6 +37,7 @@ document.querySelectorAll('.nav-item').forEach((btn) => {
     if (btn.dataset.view === 'contas') carregarContasCadastro();
     if (btn.dataset.view === 'categorias') carregarCategorias();
     if (btn.dataset.view === 'historico') carregarHistorico();
+    if (btn.dataset.view === 'extratos') carregarExtratosPagina();
   });
 });
 
@@ -558,6 +559,156 @@ async function carregarHistorico() {
     tbody.appendChild(tr);
   });
 }
+
+// ---------------- VIEW: Extratos ----------------
+let estadoExtrato = { contaId: null, ano: hoje.getFullYear(), mes: hoje.getMonth() + 1 };
+
+async function popularSelectContasExtrato() {
+  const contas = await api.contas.list(true);
+  const select = document.getElementById('extrato-select-conta');
+  const valorAtual = estadoExtrato.contaId;
+  select.innerHTML = contas.map((c) => `<option value="${c.id}">${c.nome}</option>`).join('');
+  if (contas.length === 0) return;
+  const existeAtual = contas.some((c) => c.id === valorAtual);
+  estadoExtrato.contaId = existeAtual ? valorAtual : contas[0].id;
+  select.value = estadoExtrato.contaId;
+}
+
+async function carregarTransacoesExtrato() {
+  document.getElementById('extrato-mes-titulo').textContent = `${MESES[estadoExtrato.mes - 1]} de ${estadoExtrato.ano}`;
+  if (!estadoExtrato.contaId) {
+    document.querySelector('#tabela-transacoes tbody').innerHTML = '<tr><td colspan="5" class="empty-hint">Cadastre uma conta primeiro (aba Contas).</td></tr>';
+    return;
+  }
+  categoriasCache = await api.categorias.list();
+  const [transacoes, soma] = await Promise.all([
+    api.extrato.listTransacoes(estadoExtrato.contaId, estadoExtrato.ano, estadoExtrato.mes),
+    api.extrato.somaDoMes(estadoExtrato.contaId, estadoExtrato.ano, estadoExtrato.mes),
+  ]);
+
+  document.getElementById('extrato-total-gasto').textContent = fmtMoeda(soma);
+  document.getElementById('extrato-sem-categoria').textContent = transacoes.filter((t) => t.valor < 0 && !t.categoria_id).length;
+
+  const opcoesDespesa = opcoesCategorias('despesa');
+  const tbody = document.querySelector('#tabela-transacoes tbody');
+  tbody.innerHTML = transacoes.length === 0
+    ? '<tr><td colspan="5" class="empty-hint">Nenhuma transação importada pra esse mês ainda.</td></tr>'
+    : '';
+  transacoes.forEach((t) => {
+    const tr = document.createElement('tr');
+    const selectHtml = `<select data-id="${t.id}" data-action="cat-transacao">
+      <option value="">Sem categoria</option>
+      ${opcoesDespesa.map((o) => `<option value="${o.value}" ${o.value === t.categoria_id ? 'selected' : ''}>${o.label}</option>`).join('')}
+    </select>`;
+    tr.innerHTML = `
+      <td>${t.data.slice(8, 10)}/${t.data.slice(5, 7)}</td>
+      <td>${t.descricao}</td>
+      <td>${selectHtml}</td>
+      <td style="color:${t.valor < 0 ? 'var(--red)' : 'var(--green)'}">${fmtMoeda(t.valor)}</td>
+      <td>
+        <button class="icon-action" data-id="${t.id}" data-action="salvar-regra-transacao" title="Aplicar essa categoria sempre que aparecer essa descrição">🔁</button>
+        <button class="icon-action" data-id="${t.id}" data-action="del-transacao">✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-action="cat-transacao"]').forEach((el) => {
+    el.addEventListener('change', async (e) => {
+      const categoriaId = e.target.value ? parseInt(e.target.value) : null;
+      await api.extrato.atualizarCategoria(parseInt(e.target.dataset.id), categoriaId, false);
+      carregarTransacoesExtrato();
+    });
+  });
+  tbody.querySelectorAll('[data-action="salvar-regra-transacao"]').forEach((el) => {
+    el.addEventListener('click', async (e) => {
+      const id = parseInt(e.target.dataset.id);
+      const select = tbody.querySelector(`select[data-id="${id}"]`);
+      const categoriaId = select.value ? parseInt(select.value) : null;
+      if (!categoriaId) { alert('Escolhe uma categoria antes de salvar a regra.'); return; }
+      await api.extrato.atualizarCategoria(id, categoriaId, true);
+      alert('Regra salva! Próximas importações com essa descrição já vêm categorizadas.');
+      carregarRegras();
+    });
+  });
+  tbody.querySelectorAll('[data-action="del-transacao"]').forEach((el) => {
+    el.addEventListener('click', async (e) => {
+      await api.extrato.removerTransacao(parseInt(e.target.dataset.id));
+      carregarTransacoesExtrato();
+    });
+  });
+}
+
+async function carregarRegras() {
+  const regras = await api.regras.list();
+  const tbody = document.querySelector('#tabela-regras tbody');
+  tbody.innerHTML = regras.length === 0
+    ? '<tr><td colspan="3" class="empty-hint">Nenhuma regra ainda.</td></tr>'
+    : '';
+  regras.forEach((r) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.padrao}</td>
+      <td>${r.categoria_nome ? `<span class="badge"><span class="badge-dot" style="background:${r.categoria_cor}"></span>${r.categoria_nome}</span>` : '—'}</td>
+      <td><button class="icon-action" data-id="${r.id}" data-action="del-regra">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-action="del-regra"]').forEach((el) => {
+    el.addEventListener('click', async (e) => {
+      await api.regras.remover(parseInt(e.target.dataset.id));
+      carregarRegras();
+    });
+  });
+}
+
+async function carregarExtratosPagina() {
+  categoriasCache = await api.categorias.list();
+  await popularSelectContasExtrato();
+  await carregarTransacoesExtrato();
+  await carregarRegras();
+}
+
+document.getElementById('extrato-select-conta').addEventListener('change', (e) => {
+  estadoExtrato.contaId = parseInt(e.target.value);
+  carregarTransacoesExtrato();
+});
+document.getElementById('extrato-mes-prev').addEventListener('click', () => {
+  estadoExtrato.mes -= 1;
+  if (estadoExtrato.mes < 1) { estadoExtrato.mes = 12; estadoExtrato.ano -= 1; }
+  carregarTransacoesExtrato();
+});
+document.getElementById('extrato-mes-next').addEventListener('click', () => {
+  estadoExtrato.mes += 1;
+  if (estadoExtrato.mes > 12) { estadoExtrato.mes = 1; estadoExtrato.ano += 1; }
+  carregarTransacoesExtrato();
+});
+
+document.getElementById('btn-importar-ofx').addEventListener('click', async () => {
+  if (!estadoExtrato.contaId) { alert('Cadastre uma conta primeiro (aba Contas).'); return; }
+  const caminho = await api.extrato.selecionarArquivo();
+  if (!caminho) return;
+  const resultado = await api.extrato.importar(estadoExtrato.contaId, caminho);
+  alert(`${resultado.importadas} transação(ões) nova(s) importada(s). ${resultado.duplicadas} já existiam e foram ignoradas.`);
+  carregarTransacoesExtrato();
+});
+
+document.getElementById('btn-aplicar-fatura').addEventListener('click', async () => {
+  if (!estadoExtrato.contaId) return;
+  const confirmado = confirm(`Usar o total das transações de ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano} como valor da fatura desse mês? Isso substitui o valor atual do lançamento.`);
+  if (!confirmado) return;
+  const soma = await api.extrato.aplicarSomaAoLancamento(estadoExtrato.contaId, estadoExtrato.ano, estadoExtrato.mes);
+  alert(`Valor da fatura atualizado pra ${fmtMoeda(soma)}.`);
+});
+
+document.getElementById('btn-add-regra').addEventListener('click', () => {
+  abrirModal('Nova regra', [
+    { key: 'padrao', label: 'Padrão (parte do texto do extrato)', type: 'text' },
+    { key: 'categoria_id', label: 'Categoria', type: 'select', options: opcoesCategorias('despesa') },
+  ], {}, async (dados) => {
+    await api.regras.criar(dados);
+    carregarRegras();
+  });
+});
 
 // ---------------- Boot ----------------
 carregarMes();

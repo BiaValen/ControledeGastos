@@ -1,6 +1,8 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const api = require('./src/api');
+const { parseOfx } = require('./src/ofx');
 
 function registerHandlers() {
   const handlers = {
@@ -32,6 +34,31 @@ function registerHandlers() {
     'gastosAvulsos:criar': (_e, g) => api.criarGastoAvulso(g),
     'gastosAvulsos:atualizar': (_e, id, g) => api.atualizarGastoAvulso(id, g),
     'gastosAvulsos:remover': (_e, id) => api.removerGastoAvulso(id),
+
+    'regras:list': () => api.listRegras(),
+    'regras:criar': (_e, r) => api.criarRegra(r),
+    'regras:remover': (_e, id) => api.removerRegra(id),
+
+    'extrato:selecionarArquivo': async (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender);
+      const resultado = await dialog.showOpenDialog(win, {
+        title: 'Selecionar extrato OFX',
+        filters: [{ name: 'Extrato OFX', extensions: ['ofx'] }],
+        properties: ['openFile'],
+      });
+      if (resultado.canceled || resultado.filePaths.length === 0) return null;
+      return resultado.filePaths[0];
+    },
+    'extrato:importar': (_e, contaId, caminhoArquivo) => {
+      const conteudo = fs.readFileSync(caminhoArquivo, 'latin1');
+      const transacoes = parseOfx(conteudo);
+      return api.importarExtrato(contaId, transacoes);
+    },
+    'extrato:listTransacoes': (_e, contaId, ano, mes) => api.listTransacoes(contaId, ano, mes),
+    'extrato:atualizarCategoria': (_e, id, categoriaId, salvarRegra) => api.atualizarCategoriaTransacao(id, categoriaId, salvarRegra),
+    'extrato:removerTransacao': (_e, id) => api.removerTransacao(id),
+    'extrato:somaDoMes': (_e, contaId, ano, mes) => api.somaTransacoesDoMes(contaId, ano, mes),
+    'extrato:aplicarSomaAoLancamento': (_e, contaId, ano, mes) => api.aplicarSomaAoLancamento(contaId, ano, mes),
 
     'resumo:mes': (_e, ano, mes) => api.resumoMes(ano, mes),
     'historico:meses': () => api.listHistoricoMeses(),

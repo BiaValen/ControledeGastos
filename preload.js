@@ -36,6 +36,20 @@ contextBridge.exposeInMainWorld('gastosAPI', {
     atualizar: (id, g) => ipcRenderer.invoke('gastosAvulsos:atualizar', id, g),
     remover: (id) => ipcRenderer.invoke('gastosAvulsos:remover', id),
   },
+  regras: {
+    list: () => ipcRenderer.invoke('regras:list'),
+    criar: (r) => ipcRenderer.invoke('regras:criar', r),
+    remover: (id) => ipcRenderer.invoke('regras:remover', id),
+  },
+  extrato: {
+    selecionarArquivo: () => ipcRenderer.invoke('extrato:selecionarArquivo'),
+    importar: (contaId, caminho) => ipcRenderer.invoke('extrato:importar', contaId, caminho),
+    listTransacoes: (contaId, ano, mes) => ipcRenderer.invoke('extrato:listTransacoes', contaId, ano, mes),
+    atualizarCategoria: (id, categoriaId, salvarRegra) => ipcRenderer.invoke('extrato:atualizarCategoria', id, categoriaId, salvarRegra),
+    removerTransacao: (id) => ipcRenderer.invoke('extrato:removerTransacao', id),
+    somaDoMes: (contaId, ano, mes) => ipcRenderer.invoke('extrato:somaDoMes', contaId, ano, mes),
+    aplicarSomaAoLancamento: (contaId, ano, mes) => ipcRenderer.invoke('extrato:aplicarSomaAoLancamento', contaId, ano, mes),
+  },
   resumo: {
     mes: (ano, mes) => ipcRenderer.invoke('resumo:mes', ano, mes),
   },
