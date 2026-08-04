@@ -374,14 +374,28 @@ async function carregarContasCadastro() {
       <td>${c.categoria_nome ? `<span class="badge"><span class="badge-dot" style="background:${c.categoria_cor}"></span>${c.categoria_nome}</span>` : '—'}</td>
       <td>${c.dia_vencimento ? 'dia ' + c.dia_vencimento : '—'}</td>
       <td>${c.valor_padrao != null ? fmtMoeda(c.valor_padrao) : '—'}</td>
-      <td>${c.eh_cartao ? 'Sim' : 'Não'}</td>
-      <td>${c.ativa ? 'Sim' : 'Não'}</td>
+      <td><input type="checkbox" class="checkbox" data-id="${c.id}" data-action="toggle-cartao" ${c.eh_cartao ? 'checked' : ''} /></td>
+      <td><input type="checkbox" class="checkbox" data-id="${c.id}" data-action="toggle-ativa" ${c.ativa ? 'checked' : ''} /></td>
       <td>
         <button class="icon-action" data-id="${c.id}" data-action="edit-conta">✎</button>
         <button class="icon-action" data-id="${c.id}" data-action="del-conta">✕</button>
       </td>
     `;
     tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-action="toggle-cartao"]').forEach((el) => {
+    el.addEventListener('change', async (e) => {
+      const conta = contas.find((c) => c.id === parseInt(e.target.dataset.id));
+      await api.contas.atualizar(conta.id, { ...conta, eh_cartao: e.target.checked });
+      carregarContasCadastro();
+    });
+  });
+  tbody.querySelectorAll('[data-action="toggle-ativa"]').forEach((el) => {
+    el.addEventListener('change', async (e) => {
+      const conta = contas.find((c) => c.id === parseInt(e.target.dataset.id));
+      await api.contas.atualizar(conta.id, { ...conta, ativa: e.target.checked });
+      carregarContasCadastro();
+    });
   });
   tbody.querySelectorAll('[data-action="edit-conta"]').forEach((el) => {
     el.addEventListener('click', () => abrirModalConta(contas.find((c) => c.id === parseInt(el.dataset.id))));
