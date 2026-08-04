@@ -39,13 +39,24 @@ CREATE TABLE IF NOT EXISTS lancamentos (
   UNIQUE(conta_id, ano, mes)
 );
 
+CREATE TABLE IF NOT EXISTS fontes_renda (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL,
+  tipo TEXT NOT NULL DEFAULT 'fixa' CHECK (tipo IN ('fixa','variavel')),
+  categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
+  dia_recebimento INTEGER,
+  valor_padrao REAL,
+  ativa INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS ganhos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   descricao TEXT NOT NULL,
   valor REAL NOT NULL,
   data TEXT NOT NULL,
   categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
-  observacao TEXT
+  observacao TEXT,
+  fonte_id INTEGER REFERENCES fontes_renda(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS gastos_avulsos (
@@ -57,6 +68,12 @@ CREATE TABLE IF NOT EXISTS gastos_avulsos (
   pago INTEGER NOT NULL DEFAULT 1
 );
 `);
+
+// migração: bancos criados antes da tabela fontes_renda não têm a coluna fonte_id em ganhos
+const colunasGanhos = db.prepare("PRAGMA table_info(ganhos)").all().map((c) => c.name);
+if (!colunasGanhos.includes('fonte_id')) {
+  db.exec('ALTER TABLE ganhos ADD COLUMN fonte_id INTEGER REFERENCES fontes_renda(id) ON DELETE SET NULL');
+}
 
 const categoriaCount = db.prepare('SELECT COUNT(*) AS n FROM categorias').get().n;
 if (categoriaCount === 0) {

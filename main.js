@@ -17,6 +17,12 @@ function registerHandlers() {
     'lancamentos:listDoMes': (_e, ano, mes) => api.listLancamentosDoMes(ano, mes),
     'lancamentos:atualizar': (_e, id, dados) => api.atualizarLancamento(id, dados),
 
+    'fontesRenda:list': (_e, somenteAtivas) => api.listFontesRenda(somenteAtivas),
+    'fontesRenda:criar': (_e, f) => api.criarFonteRenda(f),
+    'fontesRenda:atualizar': (_e, id, f) => api.atualizarFonteRenda(id, f),
+    'fontesRenda:remover': (_e, id) => api.removerFonteRenda(id),
+
+    'ganhos:list': () => api.listGanhos(),
     'ganhos:listDoMes': (_e, ano, mes) => api.listGanhosDoMes(ano, mes),
     'ganhos:criar': (_e, g) => api.criarGanho(g),
     'ganhos:atualizar': (_e, id, g) => api.atualizarGanho(id, g),

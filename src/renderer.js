@@ -13,8 +13,9 @@ function fmtMoeda(v) {
 // ---------------- Tema claro/escuro ----------------
 function aplicarTema(tema) {
   document.documentElement.setAttribute('data-theme', tema === 'claro' ? 'light' : 'dark');
-  document.getElementById('theme-icon').textContent = tema === 'claro' ? '☀️' : '🌙';
-  document.getElementById('theme-label').textContent = tema === 'claro' ? 'Tema claro' : 'Tema escuro';
+  const icone = document.getElementById('theme-icon');
+  icone.textContent = tema === 'claro' ? '☀️' : '🌙';
+  document.getElementById('btn-theme-toggle').title = tema === 'claro' ? 'Mudar pra tema escuro' : 'Mudar pra tema claro';
 }
 let temaAtual = localStorage.getItem('tema') || 'escuro';
 aplicarTema(temaAtual);
@@ -32,6 +33,7 @@ document.querySelectorAll('.nav-item').forEach((btn) => {
     btn.classList.add('active');
     document.getElementById('view-' + btn.dataset.view).classList.add('active');
     if (btn.dataset.view === 'mes') carregarMes();
+    if (btn.dataset.view === 'ganhos') carregarGanhosPagina();
     if (btn.dataset.view === 'contas') carregarContasCadastro();
     if (btn.dataset.view === 'categorias') carregarCategorias();
     if (btn.dataset.view === 'historico') carregarHistorico();
@@ -51,10 +53,7 @@ function abrirModal(titulo, campos, valoresIniciais, onSave) {
 
   campos.forEach((campo) => {
     const wrap = document.createElement('div');
-    wrap.className = 'field';
-    const label = document.createElement('label');
-    label.textContent = campo.label;
-    wrap.appendChild(label);
+    wrap.className = campo.type === 'checkbox' ? 'field field-checkbox' : 'field';
 
     let input;
     if (campo.type === 'select') {
@@ -68,13 +67,25 @@ function abrirModal(titulo, campos, valoresIniciais, onSave) {
     } else if (campo.type === 'checkbox') {
       input = document.createElement('input');
       input.type = 'checkbox';
+      input.className = 'checkbox';
     } else {
       input = document.createElement('input');
       input.type = campo.type || 'text';
       if (campo.step) input.step = campo.step;
     }
     input.id = 'campo-' + campo.key;
-    wrap.appendChild(input);
+
+    const label = document.createElement('label');
+    label.textContent = campo.label;
+    label.setAttribute('for', input.id);
+
+    if (campo.type === 'checkbox') {
+      wrap.appendChild(input);
+      wrap.appendChild(label);
+    } else {
+      wrap.appendChild(label);
+      wrap.appendChild(input);
+    }
     modalBody.appendChild(wrap);
     inputs[campo.key] = input;
   });
@@ -170,9 +181,15 @@ async function carregarMes() {
       <td>${g.descricao}</td>
       <td>${g.categoria_nome ? `<span class="badge"><span class="badge-dot" style="background:${g.categoria_cor}"></span>${g.categoria_nome}</span>` : '—'}</td>
       <td>${fmtMoeda(g.valor)}</td>
-      <td><button class="icon-action" data-id="${g.id}" data-action="del-ganho">✕</button></td>
+      <td>
+        <button class="icon-action" data-id="${g.id}" data-action="edit-ganho">✎</button>
+        <button class="icon-action" data-id="${g.id}" data-action="del-ganho">✕</button>
+      </td>
     `;
     tbodyGanhos.appendChild(tr);
+  });
+  tbodyGanhos.querySelectorAll('[data-action="edit-ganho"]').forEach((el) => {
+    el.addEventListener('click', () => abrirModalGanho(ganhos.find((g) => g.id === parseInt(el.dataset.id)), carregarMes));
   });
   tbodyGanhos.querySelectorAll('[data-action="del-ganho"]').forEach((el) => {
     el.addEventListener('click', async (e) => {
@@ -219,17 +236,21 @@ function dataDefault() {
   return new Date().toISOString().slice(0, 10);
 }
 
-document.getElementById('btn-add-ganho').addEventListener('click', () => {
-  abrirModal('Novo ganho', [
+function abrirModalGanho(ganho, aoSalvar) {
+  abrirModal(ganho ? 'Editar ganho' : 'Novo ganho', [
     { key: 'descricao', label: 'Descrição', type: 'text' },
     { key: 'valor', label: 'Valor', type: 'number', step: '0.01' },
     { key: 'data', label: 'Data', type: 'date' },
     { key: 'categoria_id', label: 'Categoria', type: 'select', options: opcoesCategorias('ganho') },
-  ], { data: dataDefault() }, async (dados) => {
-    await api.ganhos.criar(dados);
-    carregarMes();
+    { key: 'observacao', label: 'Observação (opcional)', type: 'text' },
+  ], ganho || { data: dataDefault() }, async (dados) => {
+    if (ganho) await api.ganhos.atualizar(ganho.id, dados);
+    else await api.ganhos.criar(dados);
+    aoSalvar();
   });
-});
+}
+
+document.getElementById('btn-add-ganho').addEventListener('click', () => abrirModalGanho(null, carregarMes));
 
 document.getElementById('btn-add-avulso').addEventListener('click', () => {
   abrirModal('Novo gasto avulso', [
@@ -242,6 +263,99 @@ document.getElementById('btn-add-avulso').addEventListener('click', () => {
     carregarMes();
   });
 });
+
+// ---------------- Fontes de renda recorrente ----------------
+async function carregarFontesRenda() {
+  const fontes = await api.fontesRenda.list(false);
+  const tbody = document.querySelector('#tabela-fontes-renda tbody');
+  tbody.innerHTML = fontes.length === 0
+    ? '<tr><td colspan="7" class="empty-hint">Nenhuma fonte cadastrada. Ex: Salário.</td></tr>'
+    : '';
+  fontes.forEach((f) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${f.nome}</td>
+      <td>${f.tipo === 'fixa' ? 'Fixa' : 'Variável'}</td>
+      <td>${f.categoria_nome ? `<span class="badge"><span class="badge-dot" style="background:${f.categoria_cor}"></span>${f.categoria_nome}</span>` : '—'}</td>
+      <td>${f.dia_recebimento ? 'dia ' + f.dia_recebimento : '—'}</td>
+      <td>${f.valor_padrao != null ? fmtMoeda(f.valor_padrao) : '—'}</td>
+      <td>${f.ativa ? 'Sim' : 'Não'}</td>
+      <td>
+        <button class="icon-action" data-id="${f.id}" data-action="edit-fonte">✎</button>
+        <button class="icon-action" data-id="${f.id}" data-action="del-fonte">✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-action="edit-fonte"]').forEach((el) => {
+    el.addEventListener('click', () => abrirModalFonteRenda(fontes.find((f) => f.id === parseInt(el.dataset.id))));
+  });
+  tbody.querySelectorAll('[data-action="del-fonte"]').forEach((el) => {
+    el.addEventListener('click', async () => {
+      await api.fontesRenda.remover(parseInt(el.dataset.id));
+      carregarFontesRenda();
+    });
+  });
+}
+
+function abrirModalFonteRenda(fonte) {
+  abrirModal(fonte ? 'Editar fonte de renda' : 'Nova fonte de renda', [
+    { key: 'nome', label: 'Nome', type: 'text' },
+    { key: 'tipo', label: 'Tipo', type: 'select', options: [{ value: 'fixa', label: 'Fixa' }, { value: 'variavel', label: 'Variável' }] },
+    { key: 'categoria_id', label: 'Categoria', type: 'select', options: opcoesCategorias('ganho') },
+    { key: 'dia_recebimento', label: 'Dia de recebimento', type: 'number' },
+    { key: 'valor_padrao', label: 'Valor padrão (se fixa)', type: 'number', step: '0.01' },
+    { key: 'ativa', label: 'Ativa', type: 'checkbox' },
+  ], fonte || { ativa: true, tipo: 'fixa' }, async (dados) => {
+    if (fonte) await api.fontesRenda.atualizar(fonte.id, dados);
+    else await api.fontesRenda.criar(dados);
+    carregarFontesRenda();
+  });
+}
+document.getElementById('btn-add-fonte-renda').addEventListener('click', () => abrirModalFonteRenda(null));
+
+// ---------------- VIEW: Ganhos (página própria) ----------------
+async function carregarGanhosPagina() {
+  categoriasCache = await api.categorias.list();
+  await carregarFontesRenda();
+  const ganhos = await api.ganhos.list();
+
+  const totalGeral = ganhos.reduce((s, g) => s + g.valor, 0);
+  const prefixMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  const totalMes = ganhos.filter((g) => g.data.startsWith(prefixMesAtual)).reduce((s, g) => s + g.valor, 0);
+  document.getElementById('ganhos-total-geral').textContent = fmtMoeda(totalGeral);
+  document.getElementById('ganhos-total-mes').textContent = fmtMoeda(totalMes);
+
+  const tbody = document.querySelector('#tabela-ganhos-pagina tbody');
+  tbody.innerHTML = ganhos.length === 0
+    ? '<tr><td colspan="6" class="empty-hint">Nenhum ganho lançado ainda.</td></tr>'
+    : '';
+  ganhos.forEach((g) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${g.data.slice(8, 10)}/${g.data.slice(5, 7)}/${g.data.slice(0, 4)}</td>
+      <td>${g.descricao}</td>
+      <td>${g.categoria_nome ? `<span class="badge"><span class="badge-dot" style="background:${g.categoria_cor}"></span>${g.categoria_nome}</span>` : '—'}</td>
+      <td>${g.observacao || '—'}</td>
+      <td>${fmtMoeda(g.valor)}</td>
+      <td>
+        <button class="icon-action" data-id="${g.id}" data-action="edit-ganho-pagina">✎</button>
+        <button class="icon-action" data-id="${g.id}" data-action="del-ganho-pagina">✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-action="edit-ganho-pagina"]').forEach((el) => {
+    el.addEventListener('click', () => abrirModalGanho(ganhos.find((g) => g.id === parseInt(el.dataset.id)), carregarGanhosPagina));
+  });
+  tbody.querySelectorAll('[data-action="del-ganho-pagina"]').forEach((el) => {
+    el.addEventListener('click', async (e) => {
+      await api.ganhos.remover(parseInt(e.target.dataset.id));
+      carregarGanhosPagina();
+    });
+  });
+}
+document.getElementById('btn-add-ganho-pagina').addEventListener('click', () => abrirModalGanho(null, carregarGanhosPagina));
 
 // ---------------- VIEW: Contas (cadastro) ----------------
 async function carregarContasCadastro() {

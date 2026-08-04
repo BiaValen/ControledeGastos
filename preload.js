@@ -17,7 +17,14 @@ contextBridge.exposeInMainWorld('gastosAPI', {
     listDoMes: (ano, mes) => ipcRenderer.invoke('lancamentos:listDoMes', ano, mes),
     atualizar: (id, dados) => ipcRenderer.invoke('lancamentos:atualizar', id, dados),
   },
+  fontesRenda: {
+    list: (somenteAtivas) => ipcRenderer.invoke('fontesRenda:list', somenteAtivas),
+    criar: (f) => ipcRenderer.invoke('fontesRenda:criar', f),
+    atualizar: (id, f) => ipcRenderer.invoke('fontesRenda:atualizar', id, f),
+    remover: (id) => ipcRenderer.invoke('fontesRenda:remover', id),
+  },
   ganhos: {
+    list: () => ipcRenderer.invoke('ganhos:list'),
     listDoMes: (ano, mes) => ipcRenderer.invoke('ganhos:listDoMes', ano, mes),
     criar: (g) => ipcRenderer.invoke('ganhos:criar', g),
     atualizar: (id, g) => ipcRenderer.invoke('ganhos:atualizar', id, g),

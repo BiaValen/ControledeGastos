@@ -38,31 +38,32 @@ body {
   transition: background .15s ease, color .15s ease;
 }
 
-.app { display: flex; height: 100vh; }
+.app { display: flex; flex-direction: column; height: 100vh; }
 
-.sidebar {
-  width: 200px;
-  background: var(--bg-panel);
-  border-right: 1px solid var(--border);
+.topbar {
   display: flex;
-  flex-direction: column;
-  padding: 16px 10px;
-  gap: 4px;
+  align-items: center;
+  gap: 20px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
   flex-shrink: 0;
 }
 
 .brand {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
-  padding: 8px 10px 20px;
+  white-space: nowrap;
 }
+
+.nav-items { display: flex; gap: 4px; flex: 1; }
 
 .nav-item {
   background: transparent;
   border: none;
   color: var(--text-dim);
   text-align: left;
-  padding: 10px 12px;
+  padding: 8px 14px;
   border-radius: var(--radius);
   cursor: pointer;
   font-size: 14px;
@@ -70,21 +71,21 @@ body {
 .nav-item:hover { background: var(--bg-elevated); color: var(--text); }
 .nav-item.active { background: var(--accent); color: #fff; }
 
-.sidebar-footer { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); }
-.theme-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.theme-toggle-icon {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  color: var(--text-dim);
-  padding: 9px 12px;
-  border-radius: var(--radius);
+  color: var(--text);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
-.theme-toggle:hover { color: var(--text); }
+.theme-toggle-icon:hover { background: var(--accent-dim); }
 
 .content {
   flex: 1;
@@ -268,6 +269,9 @@ body {
 
 .field { margin-bottom: 12px; display: flex; flex-direction: column; gap: 5px; }
 .field label { font-size: 12px; color: var(--text-dim); }
+.field-checkbox { flex-direction: row; align-items: center; gap: 8px; }
+.field-checkbox label { font-size: 13px; color: var(--text); margin: 0; }
+.field-checkbox input.checkbox { flex: none; width: 18px; height: 18px; padding: 0; border: none; background: transparent; }
 .field input, .field select {
   background: var(--bg-elevated);
   border: 1px solid var(--border);

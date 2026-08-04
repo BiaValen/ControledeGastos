@@ -59,8 +59,7 @@ function garantirLancamentosDoMes(ano, mes) {
   });
   tx(contasAtivas);
 }
-function listLancamentosDoMes(ano, mes) {
-  garantirLancamentosDoMes(ano, mes);
+function listLancamentosExistentesDoMes(ano, mes) {
   return db.prepare(`
     SELECT lancamentos.*, contas.nome AS conta_nome, contas.tipo AS conta_tipo,
            contas.dia_vencimento, categorias.nome AS categoria_nome, categorias.cor AS categoria_cor
@@ -71,6 +70,10 @@ function listLancamentosDoMes(ano, mes) {
     ORDER BY contas.dia_vencimento IS NULL, contas.dia_vencimento, contas.nome
   `).all(ano, mes);
 }
+function listLancamentosDoMes(ano, mes) {
+  garantirLancamentosDoMes(ano, mes);
+  return listLancamentosExistentesDoMes(ano, mes);
+}
 function atualizarLancamento(id, dados) {
   const atual = db.prepare('SELECT * FROM lancamentos WHERE id = ?').get(id);
   if (!atual) throw new Error('Lançamento não encontrado');
@@ -80,14 +83,72 @@ function atualizarLancamento(id, dados) {
   db.prepare('UPDATE lancamentos SET valor = ?, pago = ?, data_pagamento = ? WHERE id = ?').run(valor, pago, data_pagamento, id);
 }
 
+// ---------- Fontes de renda (recorrentes, ex: Salário) ----------
+function listFontesRenda(somenteAtivas) {
+  const sql = `SELECT fontes_renda.*, categorias.nome AS categoria_nome, categorias.cor AS categoria_cor
+               FROM fontes_renda LEFT JOIN categorias ON categorias.id = fontes_renda.categoria_id
+               ${somenteAtivas ? 'WHERE ativa = 1' : ''}
+               ORDER BY fontes_renda.nome`;
+  return db.prepare(sql).all();
+}
+function criarFonteRenda(f) {
+  const info = db.prepare(
+    'INSERT INTO fontes_renda (nome, tipo, categoria_id, dia_recebimento, valor_padrao, ativa) VALUES (?, ?, ?, ?, ?, 1)'
+  ).run(f.nome, f.tipo, f.categoria_id || null, f.dia_recebimento || null, f.valor_padrao || null);
+  return info.lastInsertRowid;
+}
+function atualizarFonteRenda(id, f) {
+  db.prepare(
+    'UPDATE fontes_renda SET nome = ?, tipo = ?, categoria_id = ?, dia_recebimento = ?, valor_padrao = ?, ativa = ? WHERE id = ?'
+  ).run(f.nome, f.tipo, f.categoria_id || null, f.dia_recebimento || null, f.valor_padrao || null, f.ativa ? 1 : 0, id);
+}
+function removerFonteRenda(id) {
+  const temGanhos = db.prepare('SELECT COUNT(*) AS n FROM ganhos WHERE fonte_id = ?').get(id).n;
+  if (temGanhos > 0) {
+    db.prepare('UPDATE fontes_renda SET ativa = 0 WHERE id = ?').run(id);
+    return { desativada: true };
+  }
+  db.prepare('DELETE FROM fontes_renda WHERE id = ?').run(id);
+  return { removida: true };
+}
+// garante que cada fonte ativa já tenha um ganho gerado pro mês pedido (usa o valor_padrao ATUAL da fonte)
+function garantirGanhosRecorrentesDoMes(ano, mes) {
+  const fontesAtivas = db.prepare('SELECT * FROM fontes_renda WHERE ativa = 1').all();
+  const mesStr = `${ano}-${String(mes).padStart(2, '0')}`;
+  const existe = db.prepare('SELECT 1 FROM ganhos WHERE fonte_id = ? AND substr(data, 1, 7) = ?');
+  const insert = db.prepare('INSERT INTO ganhos (descricao, valor, data, categoria_id, observacao, fonte_id) VALUES (?, ?, ?, ?, NULL, ?)');
+  const tx = db.transaction((fontes) => {
+    for (const f of fontes) {
+      if (existe.get(f.id, mesStr)) continue;
+      const dia = f.dia_recebimento || 1;
+      const data = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+      insert.run(f.nome, f.valor_padrao, data, f.categoria_id, f.id);
+    }
+  });
+  tx(fontesAtivas);
+}
+
 // ---------- Ganhos ----------
-function listGanhosDoMes(ano, mes) {
+function listGanhos() {
+  const hoje = new Date();
+  garantirGanhosRecorrentesDoMes(hoje.getFullYear(), hoje.getMonth() + 1);
+  return db.prepare(`
+    SELECT ganhos.*, categorias.nome AS categoria_nome, categorias.cor AS categoria_cor
+    FROM ganhos LEFT JOIN categorias ON categorias.id = ganhos.categoria_id
+    ORDER BY data DESC, ganhos.id DESC
+  `).all();
+}
+function listGanhosExistentesDoMes(ano, mes) {
   const prefix = `${ano}-${String(mes).padStart(2, '0')}`;
   return db.prepare(`
     SELECT ganhos.*, categorias.nome AS categoria_nome, categorias.cor AS categoria_cor
     FROM ganhos LEFT JOIN categorias ON categorias.id = ganhos.categoria_id
     WHERE data LIKE ? ORDER BY data
   `).all(`${prefix}%`);
+}
+function listGanhosDoMes(ano, mes) {
+  garantirGanhosRecorrentesDoMes(ano, mes);
+  return listGanhosExistentesDoMes(ano, mes);
 }
 function criarGanho(g) {
   const info = db.prepare('INSERT INTO ganhos (descricao, valor, data, categoria_id, observacao) VALUES (?, ?, ?, ?, ?)')
@@ -125,18 +186,23 @@ function removerGastoAvulso(id) {
 }
 
 // ---------- Resumo / Histórico ----------
-function resumoMes(ano, mes) {
-  const lancs = listLancamentosDoMes(ano, mes);
-  const ganhos = listGanhosDoMes(ano, mes);
-  const avulsos = listGastosAvulsosDoMes(ano, mes);
-
+function calcularResumo(lancs, ganhos, avulsos) {
   const totalContasPago = lancs.filter(l => l.pago).reduce((s, l) => s + (l.valor || 0), 0);
   const totalContasPendente = lancs.filter(l => !l.pago).reduce((s, l) => s + (l.valor || 0), 0);
   const totalGanhos = ganhos.reduce((s, g) => s + g.valor, 0);
   const totalAvulsos = avulsos.reduce((s, g) => s + g.valor, 0);
   const saldo = totalGanhos - totalContasPago - totalAvulsos;
-
   return { totalContasPago, totalContasPendente, totalGanhos, totalAvulsos, saldo };
+}
+
+// usada pela tela "Mês atual": pode gerar os lançamentos do mês se ainda não existirem
+function resumoMes(ano, mes) {
+  return calcularResumo(listLancamentosDoMes(ano, mes), listGanhosDoMes(ano, mes), listGastosAvulsosDoMes(ano, mes));
+}
+
+// usada pelo Histórico: só lê o que já existe, nunca cria lançamento/ganho novo pra mês antigo
+function resumoMesSomenteLeitura(ano, mes) {
+  return calcularResumo(listLancamentosExistentesDoMes(ano, mes), listGanhosExistentesDoMes(ano, mes), listGastosAvulsosDoMes(ano, mes));
 }
 
 function listHistoricoMeses() {
@@ -147,14 +213,15 @@ function listHistoricoMeses() {
       UNION SELECT CAST(substr(data,1,4) AS INTEGER) AS ano, CAST(substr(data,6,2) AS INTEGER) AS mes FROM gastos_avulsos
     ) ORDER BY ano DESC, mes DESC
   `).all();
-  return rows.map(r => ({ ano: r.ano, mes: r.mes, ...resumoMes(r.ano, r.mes) }));
+  return rows.map(r => ({ ano: r.ano, mes: r.mes, ...resumoMesSomenteLeitura(r.ano, r.mes) }));
 }
 
 module.exports = {
   listCategorias, criarCategoria, atualizarCategoria, removerCategoria,
   listContas, criarConta, atualizarConta, removerConta,
   listLancamentosDoMes, atualizarLancamento,
-  listGanhosDoMes, criarGanho, atualizarGanho, removerGanho,
+  listFontesRenda, criarFonteRenda, atualizarFonteRenda, removerFonteRenda,
+  listGanhos, listGanhosDoMes, criarGanho, atualizarGanho, removerGanho,
   listGastosAvulsosDoMes, criarGastoAvulso, atualizarGastoAvulso, removerGastoAvulso,
   resumoMes, listHistoricoMeses,
 };

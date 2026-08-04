@@ -7,19 +7,18 @@
 </head>
 <body>
   <div class="app">
-    <nav class="sidebar">
+    <nav class="topbar">
       <div class="brand">💰 Gastos</div>
-      <button class="nav-item active" data-view="mes">Mês atual</button>
-      <button class="nav-item" data-view="contas">Contas</button>
-      <button class="nav-item" data-view="categorias">Categorias</button>
-      <button class="nav-item" data-view="historico">Histórico</button>
-
-      <div class="sidebar-footer">
-        <button class="theme-toggle" id="btn-theme-toggle">
-          <span id="theme-icon">🌙</span>
-          <span id="theme-label">Tema escuro</span>
-        </button>
+      <div class="nav-items">
+        <button class="nav-item active" data-view="mes">Mês atual</button>
+        <button class="nav-item" data-view="ganhos">Ganhos</button>
+        <button class="nav-item" data-view="contas">Contas</button>
+        <button class="nav-item" data-view="categorias">Categorias</button>
+        <button class="nav-item" data-view="historico">Histórico</button>
       </div>
+      <button class="theme-toggle-icon" id="btn-theme-toggle" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
+        <span id="theme-icon">🌙</span>
+      </button>
     </nav>
 
     <main class="content">
@@ -92,6 +91,42 @@
               </table>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: GANHOS ===== -->
+      <section id="view-ganhos" class="view">
+        <header class="view-header">
+          <h1>Ganhos</h1>
+          <button class="btn" id="btn-add-ganho-pagina">+ Novo ganho</button>
+        </header>
+        <div class="cards-resumo" style="grid-template-columns: repeat(2, 1fr); max-width: 480px;">
+          <div class="card stat">
+            <span class="stat-label">Total lançado</span>
+            <span class="stat-value positivo" id="ganhos-total-geral">R$ 0,00</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Este mês</span>
+            <span class="stat-value positivo" id="ganhos-total-mes">R$ 0,00</span>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Fontes de renda recorrente</h2>
+            <button class="btn-small" id="btn-add-fonte-renda">+ Nova fonte</button>
+          </div>
+          <p class="empty-hint" style="padding-top:0">Ex: Salário. Gera o ganho do mês sozinho — mudar o valor aqui só afeta os meses seguintes, não mexe no que já foi lançado.</p>
+          <table class="table" id="tabela-fontes-renda">
+            <thead><tr><th>Nome</th><th>Tipo</th><th>Categoria</th><th>Dia recebimento</th><th>Valor padrão</th><th>Ativa</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <table class="table" id="tabela-ganhos-pagina">
+            <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Observação</th><th>Valor</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
         </div>
       </section>
 
