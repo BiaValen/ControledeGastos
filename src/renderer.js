@@ -63,12 +63,29 @@ document.querySelectorAll('.nav-item').forEach((btn) => {
     btn.classList.add('active');
     document.getElementById('view-' + btn.dataset.view).classList.add('active');
     if (btn.dataset.view === 'mes') carregarMes();
+    if (btn.dataset.view === 'dashboard') carregarDashboard();
     if (btn.dataset.view === 'ganhos') carregarGanhosPagina();
     if (btn.dataset.view === 'contas') carregarContasCadastro();
     if (btn.dataset.view === 'categorias') carregarCategorias();
     if (btn.dataset.view === 'historico') carregarHistorico();
     if (btn.dataset.view === 'extratos') carregarExtratosPagina();
+    if (btn.dataset.view === 'investimentos') carregarInvestimentos();
   });
+});
+
+// ---------------- Menu de configurações (engrenagem) ----------------
+document.getElementById('btn-settings').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('settings-menu').classList.toggle('aberto');
+});
+document.querySelectorAll('.settings-menu-item').forEach((btn) => {
+  btn.addEventListener('click', () => document.getElementById('settings-menu').classList.remove('aberto'));
+});
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('settings-menu');
+  if (menu.classList.contains('aberto') && !e.target.closest('.settings-wrap')) {
+    menu.classList.remove('aberto');
+  }
 });
 
 // ---------------- Modal genérico ----------------
@@ -147,7 +164,27 @@ document.getElementById('modal-save').addEventListener('click', () => modalOnSav
 modalBackdrop.addEventListener('click', (e) => { if (e.target === modalBackdrop) fecharModal(); });
 
 function opcoesCategorias(tipo) {
-  return categoriasCache.filter((c) => !tipo || c.tipo === tipo).map((c) => ({ value: c.id, label: c.nome }));
+  return categoriasCache.filter((c) => !tipo || c.tipo === tipo).map((c) => ({ value: c.id, label: c.nome, cor: c.cor }));
+}
+
+function corComOpacidade(hex, alpha) {
+  const h = (hex || '#6b7280').replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// deixa o <select> de categoria com a cara da categoria escolhida (fundo e borda tingidos)
+function pintarSelectCategoria(select) {
+  const cor = select.selectedOptions[0] ? select.selectedOptions[0].dataset.cor : null;
+  if (cor) {
+    select.style.background = corComOpacidade(cor, 0.18);
+    select.style.borderColor = cor;
+  } else {
+    select.style.background = '';
+    select.style.borderColor = '';
+  }
 }
 
 // ---------------- VIEW: Mês atual ----------------
@@ -488,7 +525,7 @@ function abrirModalCategoria(categoria) {
   abrirModal(categoria ? 'Editar categoria' : 'Nova categoria', [
     { key: 'nome', label: 'Nome', type: 'text' },
     { key: 'tipo', label: 'Tipo', type: 'select', options: [{ value: 'despesa', label: 'Despesa' }, { value: 'ganho', label: 'Ganho' }] },
-    { key: 'cor', label: 'Cor', type: 'text' },
+    { key: 'cor', label: 'Cor', type: 'color' },
   ], categoria || { cor: '#6b7280', tipo: 'despesa' }, async (dados) => {
     if (categoria) await api.categorias.atualizar(categoria.id, dados);
     else await api.categorias.criar(dados);
@@ -500,6 +537,47 @@ document.getElementById('btn-add-categoria').addEventListener('click', () => abr
 // ---------------- VIEW: Histórico ----------------
 function mesAbrev(m) {
   return `${MESES[m.mes - 1].slice(0, 3).toLowerCase()}/${String(m.ano).slice(2)}`;
+}
+
+// linha com pontos (em vez de barra) — melhor pra ver tendência de duas séries cruzando
+function renderGraficoLinhaPontos(containerId, mesesAsc) {
+  const el = document.getElementById(containerId);
+  if (mesesAsc.length === 0) { el.innerHTML = '<p class="empty-hint">Sem dados suficientes ainda.</p>'; return; }
+
+  const dados = mesesAsc.map((m) => ({
+    label: mesAbrev(m),
+    ganhos: m.totalGanhos,
+    gastos: m.totalContasPago + m.totalAvulsos,
+  }));
+  const maxVal = Math.max(1, ...dados.flatMap((d) => [d.ganhos, d.gastos]));
+
+  const slot = 80;
+  const W = Math.max(480, dados.length * slot);
+  const H = 220;
+  const padBottom = 26, padTop = 16;
+  const areaH = H - padBottom - padTop;
+  const x = (i) => i * slot + slot / 2;
+  const y = (valor) => padTop + areaH - (valor / maxVal) * areaH;
+
+  const gridLines = [0.25, 0.5, 0.75, 1].map((f) => {
+    const gy = padTop + areaH * (1 - f);
+    return `<line class="grid-line" x1="0" y1="${gy}" x2="${W}" y2="${gy}" />`;
+  }).join('');
+
+  function linha(chave, cor, rotulo) {
+    const pontos = dados.map((d, i) => `${x(i)},${y(d[chave])}`).join(' ');
+    const circulos = dados.map((d, i) => `<circle cx="${x(i)}" cy="${y(d[chave])}" r="4.5" fill="${cor}"><title>${rotulo} ${d.label}: ${fmtMoeda(d[chave])}</title></circle>`).join('');
+    return `<polyline points="${pontos}" fill="none" stroke="${cor}" stroke-width="2" />${circulos}`;
+  }
+
+  const labels = dados.map((d, i) => `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${d.label}</text>`).join('');
+
+  el.innerHTML = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMinYMid meet">
+    ${gridLines}
+    ${linha('gastos', 'var(--red)', 'Gastos')}
+    ${linha('ganhos', 'var(--green)', 'Ganhos')}
+    ${labels}
+  </svg>`;
 }
 
 function renderGraficoGanhosGastos(containerId, mesesAsc) {
@@ -606,8 +684,190 @@ async function carregarHistorico() {
   });
 }
 
+// ---------------- VIEW: Dashboard ----------------
+let estadoDashboard = { contaId: null, ano: hoje.getFullYear(), mes: hoje.getMonth() + 1 };
+
+function renderDonut(containerId, dados) {
+  const el = document.getElementById(containerId);
+  const total = dados.reduce((s, d) => s + d.total, 0);
+  if (dados.length === 0 || total <= 0) {
+    el.innerHTML = '<p class="empty-hint">Sem gastos categorizados nesse mês ainda.</p>';
+    return;
+  }
+  const r = 70, cx = 100, cy = 100, largura = 26;
+  const circunferencia = 2 * Math.PI * r;
+  let acumulado = 0;
+  const arcos = dados.map((d) => {
+    const fracao = d.total / total;
+    const comprimento = fracao * circunferencia;
+    const arco = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${d.categoria_cor}" stroke-width="${largura}"
+      stroke-dasharray="${comprimento} ${circunferencia - comprimento}" stroke-dashoffset="${-acumulado}"
+      transform="rotate(-90 ${cx} ${cy})"><title>${d.categoria_nome}: ${fmtMoeda(d.total)} (${(fracao * 100).toFixed(0)}%)</title></circle>`;
+    acumulado += comprimento;
+    return arco;
+  }).join('');
+
+  const legenda = dados.map((d) => {
+    const pct = ((d.total / total) * 100).toFixed(0);
+    return `<div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:3px 0;">
+      <span class="badge-dot" style="background:${d.categoria_cor}"></span>
+      <span style="flex:1">${d.categoria_nome}</span>
+      <span style="color:var(--text-dim)">${pct}%</span>
+      <span style="min-width:80px; text-align:right">${fmtMoeda(d.total)}</span>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="display:flex; gap:24px; align-items:center; flex-wrap:wrap;">
+      <svg viewBox="0 0 200 200" width="180" height="180">
+        ${arcos}
+        <text x="100" y="96" text-anchor="middle" font-size="12" fill="var(--text-dim)">Total</text>
+        <text x="100" y="116" text-anchor="middle" font-size="15" font-weight="600" fill="var(--text)">${fmtMoeda(total)}</text>
+      </svg>
+      <div style="flex:1; min-width:180px;">${legenda}</div>
+    </div>
+  `;
+}
+
+// barras empilhadas: gasto por categoria mês a mês, pra ver a tendência de cada
+// categoria (não só o total). Limita às 5 categorias com maior gasto no período e
+// junta o resto em "Outras", senão o gráfico fica ilegível com muita cor.
+function renderTendenciaGastosCategoria(containerId, meses, porMes) {
+  const el = document.getElementById(containerId);
+  const totalPorCategoria = new Map();
+  porMes.forEach((mesDados) => {
+    mesDados.forEach((c) => {
+      const atual = totalPorCategoria.get(c.categoria_nome) || { total: 0, cor: c.categoria_cor };
+      atual.total += c.total;
+      totalPorCategoria.set(c.categoria_nome, atual);
+    });
+  });
+  const ordenadas = [...totalPorCategoria.entries()].sort((a, b) => b[1].total - a[1].total);
+  if (ordenadas.length === 0) {
+    el.innerHTML = '<p class="empty-hint">Sem gastos categorizados nesse período ainda.</p>';
+    return;
+  }
+  const principais = ordenadas.slice(0, 5).map(([nome, info]) => ({ nome, cor: info.cor }));
+  const nomesOutras = new Set(ordenadas.slice(5).map(([nome]) => nome));
+  const categoriasChart = nomesOutras.size > 0 ? [...principais, { nome: 'Outras', cor: '#6b7280' }] : principais;
+
+  const dadosPorMes = meses.map((m, i) => {
+    const valores = {};
+    categoriasChart.forEach((c) => { valores[c.nome] = 0; });
+    porMes[i].forEach((c) => {
+      const chave = nomesOutras.has(c.categoria_nome) ? 'Outras' : c.categoria_nome;
+      valores[chave] = (valores[chave] || 0) + c.total;
+    });
+    return { label: mesAbrev(m), valores };
+  });
+
+  const maxTotal = Math.max(1, ...dadosPorMes.map((d) => Object.values(d.valores).reduce((s, v) => s + v, 0)));
+  const slot = 90;
+  const W = Math.max(480, dadosPorMes.length * slot);
+  const H = 240;
+  const padBottom = 26, padTop = 10;
+  const areaH = H - padBottom - padTop;
+
+  const barras = dadosPorMes.map((d, i) => {
+    const cx = i * slot + slot / 2;
+    let yAtual = padTop + areaH;
+    const segmentos = categoriasChart.map((c) => {
+      const valor = d.valores[c.nome] || 0;
+      const altura = (valor / maxTotal) * areaH;
+      yAtual -= altura;
+      if (valor <= 0) return '';
+      return `<rect x="${cx - 20}" y="${yAtual}" width="40" height="${altura}" fill="${c.cor}" rx="2"><title>${c.nome} — ${d.label}: ${fmtMoeda(valor)}</title></rect>`;
+    }).join('');
+    return `${segmentos}<text x="${cx}" y="${H - 8}" text-anchor="middle">${d.label}</text>`;
+  }).join('');
+
+  const legenda = categoriasChart.map((c) => `
+    <span style="display:inline-flex; align-items:center; gap:5px; margin-right:14px;">
+      <span class="badge-dot" style="background:${c.cor}"></span>${c.nome}
+    </span>`).join('');
+
+  el.innerHTML = `
+    <div class="chart-legend" style="flex-wrap:wrap; margin-bottom:12px;">${legenda}</div>
+    <svg class="chart-svg" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMinYMid meet">${barras}</svg>
+  `;
+}
+
+async function carregarTendenciaGastosCategoria() {
+  const meses = [];
+  let ano = estadoDashboard.ano, mes = estadoDashboard.mes;
+  for (let i = 0; i < 6; i++) {
+    meses.unshift({ ano, mes });
+    mes -= 1;
+    if (mes < 1) { mes = 12; ano -= 1; }
+  }
+  const contaId = estadoDashboard.contaId || undefined;
+  const porMes = await Promise.all(meses.map((m) => api.dashboard.gastosPorCategoria(m.ano, m.mes, contaId)));
+  renderTendenciaGastosCategoria('dash-chart-tendencia-categoria', meses, porMes);
+}
+
+async function popularSelectEscopoDashboard() {
+  const cartoes = (await api.contas.list(true)).filter((c) => c.eh_cartao);
+  const select = document.getElementById('dash-select-escopo');
+  const valorAtual = select.value;
+  select.innerHTML = '<option value="">Tudo (contas + cartões + avulsos)</option>'
+    + cartoes.map((c) => `<option value="${c.id}">${c.nome}</option>`).join('');
+  select.value = valorAtual || '';
+}
+
+async function carregarDashboard() {
+  document.getElementById('dash-mes-titulo').textContent = `${MESES[estadoDashboard.mes - 1]} de ${estadoDashboard.ano}`;
+  await popularSelectEscopoDashboard();
+  const contaId = estadoDashboard.contaId || undefined;
+
+  const [categorias, estabelecimentos, resumo, historico] = await Promise.all([
+    api.dashboard.gastosPorCategoria(estadoDashboard.ano, estadoDashboard.mes, contaId),
+    api.dashboard.topEstabelecimentos(estadoDashboard.ano, estadoDashboard.mes, contaId),
+    api.resumo.mes(estadoDashboard.ano, estadoDashboard.mes),
+    api.historico.meses(),
+  ]);
+
+  const totalGasto = categorias.reduce((s, c) => s + c.total, 0);
+  document.getElementById('dash-total-gasto').textContent = fmtMoeda(totalGasto);
+  document.getElementById('dash-total-ganhos').textContent = fmtMoeda(resumo.totalGanhos);
+  const saldoEl = document.getElementById('dash-saldo');
+  saldoEl.textContent = fmtMoeda(resumo.saldo);
+  saldoEl.className = 'stat-value ' + (resumo.saldo >= 0 ? 'positivo' : 'alerta');
+
+  renderDonut('dash-donut', categorias);
+
+  const tbody = document.querySelector('#dash-tabela-estabelecimentos tbody');
+  tbody.innerHTML = estabelecimentos.length === 0
+    ? '<tr><td colspan="3" class="empty-hint">Nenhuma transação de cartão nesse mês ainda.</td></tr>'
+    : '';
+  estabelecimentos.forEach((e) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${e.descricao}</td><td>${e.qtd}</td><td>${fmtMoeda(e.total)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const mesesAsc = [...historico].reverse().slice(-6);
+  renderGraficoLinhaPontos('dash-chart-tendencia', mesesAsc);
+
+  await carregarTendenciaGastosCategoria();
+}
+
+document.getElementById('dash-select-escopo').addEventListener('change', (e) => {
+  estadoDashboard.contaId = e.target.value ? parseInt(e.target.value) : null;
+  carregarDashboard();
+});
+document.getElementById('dash-mes-prev').addEventListener('click', () => {
+  estadoDashboard.mes -= 1;
+  if (estadoDashboard.mes < 1) { estadoDashboard.mes = 12; estadoDashboard.ano -= 1; }
+  carregarDashboard();
+});
+document.getElementById('dash-mes-next').addEventListener('click', () => {
+  estadoDashboard.mes += 1;
+  if (estadoDashboard.mes > 12) { estadoDashboard.mes = 1; estadoDashboard.ano += 1; }
+  carregarDashboard();
+});
+
 // ---------------- VIEW: Extratos ----------------
-let estadoExtrato = { contaId: null, ano: hoje.getFullYear(), mes: hoje.getMonth() + 1 };
+let estadoExtrato = { contaId: null, categoriaFiltro: '', ano: hoje.getFullYear(), mes: hoje.getMonth() + 1 };
 
 async function popularSelectContasExtrato() {
   const todas = await api.contas.list(true);
@@ -623,6 +883,14 @@ async function popularSelectContasExtrato() {
   select.value = estadoExtrato.contaId;
 }
 
+function popularSelectCategoriaFiltro() {
+  const select = document.getElementById('extrato-select-categoria-filtro');
+  const opcoes = [...opcoesCategorias('despesa'), ...opcoesCategorias('ganho')];
+  select.innerHTML = '<option value="">Todas</option><option value="0">Sem categoria</option>'
+    + opcoes.map((o) => `<option value="${o.value}">${o.label}</option>`).join('');
+  select.value = estadoExtrato.categoriaFiltro || '';
+}
+
 async function carregarTransacoesExtrato() {
   document.getElementById('extrato-mes-titulo').textContent = `${MESES[estadoExtrato.mes - 1]} de ${estadoExtrato.ano}`;
   if (!estadoExtrato.contaId) {
@@ -630,26 +898,32 @@ async function carregarTransacoesExtrato() {
     return;
   }
   categoriasCache = await api.categorias.list();
-  const [transacoes, soma] = await Promise.all([
+  popularSelectCategoriaFiltro();
+  const [todasTransacoes, soma] = await Promise.all([
     api.extrato.listTransacoes(estadoExtrato.contaId, estadoExtrato.ano, estadoExtrato.mes),
     api.extrato.somaDoMes(estadoExtrato.contaId, estadoExtrato.ano, estadoExtrato.mes),
   ]);
 
   document.getElementById('extrato-total-gasto').textContent = fmtMoeda(soma);
-  document.getElementById('extrato-sem-categoria').textContent = transacoes.filter((t) => t.valor < 0 && !t.categoria_id).length;
+  document.getElementById('extrato-sem-categoria').textContent = todasTransacoes.filter((t) => t.valor < 0 && !t.categoria_id).length;
+
+  const filtro = estadoExtrato.categoriaFiltro;
+  const transacoes = !filtro ? todasTransacoes
+    : filtro === '0' ? todasTransacoes.filter((t) => !t.categoria_id)
+    : todasTransacoes.filter((t) => t.categoria_id === parseInt(filtro));
 
   const opcoesDespesa = opcoesCategorias('despesa');
   const opcoesGanho = opcoesCategorias('ganho');
   const tbody = document.querySelector('#tabela-transacoes tbody');
   tbody.innerHTML = transacoes.length === 0
-    ? '<tr><td colspan="5" class="empty-hint">Nenhuma transação importada pra esse mês ainda.</td></tr>'
+    ? '<tr><td colspan="5" class="empty-hint">Nenhuma transação pra mostrar com esse filtro.</td></tr>'
     : '';
   transacoes.forEach((t) => {
     const tr = document.createElement('tr');
     const opcoes = t.valor < 0 ? opcoesDespesa : opcoesGanho;
-    const selectHtml = `<select data-id="${t.id}" data-action="cat-transacao">
+    const selectHtml = `<select class="select-categoria" data-id="${t.id}" data-action="cat-transacao">
       <option value="">Sem categoria</option>
-      ${opcoes.map((o) => `<option value="${o.value}" ${o.value === t.categoria_id ? 'selected' : ''}>${o.label}</option>`).join('')}
+      ${opcoes.map((o) => `<option value="${o.value}" data-cor="${o.cor}" ${o.value === t.categoria_id ? 'selected' : ''}>${o.label}</option>`).join('')}
     </select>`;
     tr.innerHTML = `
       <td>${t.data.slice(8, 10)}/${t.data.slice(5, 7)}</td>
@@ -663,8 +937,20 @@ async function carregarTransacoesExtrato() {
     `;
     tbody.appendChild(tr);
   });
+  if (transacoes.length > 0) {
+    const totalFiltrado = transacoes.reduce((s, t) => s + t.valor, 0);
+    const trTotal = document.createElement('tr');
+    trTotal.innerHTML = `
+      <td colspan="3" style="text-align:right; font-weight:600; color:var(--text-dim);">Total</td>
+      <td style="font-weight:600; color:${totalFiltrado < 0 ? 'var(--red)' : 'var(--green)'}">${fmtMoeda(totalFiltrado)}</td>
+      <td></td>
+    `;
+    tbody.appendChild(trTotal);
+  }
+  tbody.querySelectorAll('.select-categoria').forEach((el) => pintarSelectCategoria(el));
   tbody.querySelectorAll('[data-action="cat-transacao"]').forEach((el) => {
     el.addEventListener('change', async (e) => {
+      pintarSelectCategoria(e.target);
       const categoriaId = e.target.value ? parseInt(e.target.value) : null;
       await api.extrato.atualizarCategoria(parseInt(e.target.dataset.id), categoriaId, false);
       carregarTransacoesExtrato();
@@ -729,6 +1015,10 @@ document.getElementById('extrato-select-conta').addEventListener('change', (e) =
   estadoExtrato.contaId = parseInt(e.target.value);
   carregarTransacoesExtrato();
 });
+document.getElementById('extrato-select-categoria-filtro').addEventListener('change', (e) => {
+  estadoExtrato.categoriaFiltro = e.target.value;
+  carregarTransacoesExtrato();
+});
 document.getElementById('extrato-mes-prev').addEventListener('click', () => {
   estadoExtrato.mes -= 1;
   if (estadoExtrato.mes < 1) { estadoExtrato.mes = 12; estadoExtrato.ano -= 1; }
@@ -774,6 +1064,97 @@ document.getElementById('btn-reaplicar-regras').addEventListener('click', async 
   mostrarToast(`${resultado.atualizadas} transação(ões) categorizada(s) de ${resultado.verificadas} que estavam sem categoria.`);
   carregarTransacoesExtrato();
 });
+
+// ---------------- VIEW: Investimentos ----------------
+const TIPOS_INVESTIMENTO = [
+  { nome: 'Renda Fixa', cor: '#0ea5e9' },
+  { nome: 'Tesouro Direto', cor: '#14b8a6' },
+  { nome: 'Ações', cor: '#f59e0b' },
+  { nome: 'Fundos', cor: '#8b5cf6' },
+  { nome: 'Criptomoedas', cor: '#f97316' },
+  { nome: 'Previdência', cor: '#84cc16' },
+  { nome: 'Outros', cor: '#6b7280' },
+];
+function corDoTipoInvestimento(tipo) {
+  const encontrado = TIPOS_INVESTIMENTO.find((t) => t.nome === tipo);
+  return encontrado ? encontrado.cor : '#6b7280';
+}
+
+async function carregarInvestimentos() {
+  const [investimentos, resumo, porTipo] = await Promise.all([
+    api.investimentos.list(false),
+    api.investimentos.resumo(),
+    api.investimentos.porTipo(),
+  ]);
+
+  document.getElementById('inv-total-investido').textContent = fmtMoeda(resumo.totalInvestido);
+  document.getElementById('inv-total-atual').textContent = fmtMoeda(resumo.totalAtual);
+  const rendEl = document.getElementById('inv-rendimento');
+  rendEl.textContent = fmtMoeda(resumo.rendimento);
+  rendEl.className = 'stat-value ' + (resumo.rendimento >= 0 ? 'positivo' : 'alerta');
+  const rendPctEl = document.getElementById('inv-rendimento-pct');
+  rendPctEl.textContent = `${resumo.rendimentoPct >= 0 ? '+' : ''}${resumo.rendimentoPct.toFixed(1)}%`;
+  rendPctEl.className = 'stat-value ' + (resumo.rendimentoPct >= 0 ? 'positivo' : 'alerta');
+
+  const dadosDonut = porTipo.map((t) => ({ categoria_nome: t.tipo, categoria_cor: corDoTipoInvestimento(t.tipo), total: t.total }));
+  renderDonut('inv-donut', dadosDonut);
+
+  const tbody = document.querySelector('#tabela-investimentos tbody');
+  tbody.innerHTML = investimentos.length === 0
+    ? '<tr><td colspan="6" class="empty-hint">Nenhum investimento cadastrado ainda.</td></tr>'
+    : '';
+  investimentos.forEach((inv) => {
+    const rendimento = inv.valor_atual - inv.valor_investido;
+    const tr = document.createElement('tr');
+    if (!inv.ativo) tr.classList.add('pago-row');
+    tr.innerHTML = `
+      <td>${inv.nome}</td>
+      <td><span class="badge"><span class="badge-dot" style="background:${corDoTipoInvestimento(inv.tipo)}"></span>${inv.tipo}</span></td>
+      <td>${fmtMoeda(inv.valor_investido)}</td>
+      <td><input type="number" step="0.01" class="valor-input" value="${inv.valor_atual}" data-id="${inv.id}" data-action="valor-atual" /></td>
+      <td style="color:${rendimento >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtMoeda(rendimento)}</td>
+      <td>
+        <button class="icon-action" data-id="${inv.id}" data-action="edit-investimento">✎</button>
+        <button class="icon-action" data-id="${inv.id}" data-action="del-investimento">✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-action="valor-atual"]').forEach((el) => {
+    el.addEventListener('change', async (e) => {
+      const inv = investimentos.find((i) => i.id === parseInt(e.target.dataset.id));
+      const valor_atual = e.target.value === '' ? 0 : parseFloat(e.target.value);
+      await api.investimentos.atualizar(inv.id, { ...inv, valor_atual });
+      carregarInvestimentos();
+    });
+  });
+  tbody.querySelectorAll('[data-action="edit-investimento"]').forEach((el) => {
+    el.addEventListener('click', () => abrirModalInvestimento(investimentos.find((i) => i.id === parseInt(el.dataset.id))));
+  });
+  tbody.querySelectorAll('[data-action="del-investimento"]').forEach((el) => {
+    el.addEventListener('click', async (e) => {
+      await api.investimentos.remover(parseInt(e.target.dataset.id));
+      carregarInvestimentos();
+    });
+  });
+}
+
+function abrirModalInvestimento(investimento) {
+  abrirModal(investimento ? 'Editar investimento' : 'Novo investimento', [
+    { key: 'nome', label: 'Nome', type: 'text' },
+    { key: 'tipo', label: 'Tipo', type: 'select', options: TIPOS_INVESTIMENTO.map((t) => ({ value: t.nome, label: t.nome })) },
+    { key: 'valor_investido', label: 'Valor investido', type: 'number', step: '0.01' },
+    { key: 'valor_atual', label: 'Valor atual', type: 'number', step: '0.01' },
+    { key: 'data_inicio', label: 'Data de início (opcional)', type: 'date' },
+    { key: 'observacao', label: 'Observação (opcional)', type: 'text' },
+    { key: 'ativo', label: 'Ativo', type: 'checkbox' },
+  ], investimento || { tipo: 'Renda Fixa', ativo: true }, async (dados) => {
+    if (investimento) await api.investimentos.atualizar(investimento.id, dados);
+    else await api.investimentos.criar(dados);
+    carregarInvestimentos();
+  });
+}
+document.getElementById('btn-add-investimento').addEventListener('click', () => abrirModalInvestimento(null));
 
 // ---------------- Boot ----------------
 carregarMes();

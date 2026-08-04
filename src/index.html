@@ -10,12 +10,19 @@
     <nav class="topbar">
       <div class="brand">💰 Gastos</div>
       <div class="nav-items">
+        <button class="nav-item" data-view="dashboard">Dashboard</button>
         <button class="nav-item active" data-view="mes">Mês atual</button>
         <button class="nav-item" data-view="ganhos">Ganhos</button>
         <button class="nav-item" data-view="contas">Contas</button>
-        <button class="nav-item" data-view="categorias">Categorias</button>
+        <button class="nav-item" data-view="extratos">Cartões</button>
         <button class="nav-item" data-view="historico">Histórico</button>
-        <button class="nav-item" data-view="extratos">Extratos</button>
+        <button class="nav-item" data-view="investimentos">Investimentos</button>
+      </div>
+      <div class="settings-wrap">
+        <button class="theme-toggle-icon" id="btn-settings" title="Configurações" aria-label="Configurações">⚙️</button>
+        <div class="settings-menu" id="settings-menu">
+          <button class="nav-item settings-menu-item" data-view="categorias">Categorias</button>
+        </div>
       </div>
       <button class="theme-toggle-icon" id="btn-theme-toggle" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
         <span id="theme-icon">🌙</span>
@@ -91,6 +98,63 @@
                 <tbody></tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VIEW: DASHBOARD ===== -->
+      <section id="view-dashboard" class="view">
+        <header class="view-header">
+          <h1>Dashboard</h1>
+        </header>
+
+        <div class="extrato-controles">
+          <div class="field" style="margin-bottom:0">
+            <label>Ver</label>
+            <select id="dash-select-escopo">
+              <option value="">Tudo (contas + cartões + avulsos)</option>
+            </select>
+          </div>
+          <div class="month-nav">
+            <button id="dash-mes-prev" class="icon-btn">‹</button>
+            <h1 id="dash-mes-titulo" style="font-size:16px; min-width:160px;">—</h1>
+            <button id="dash-mes-next" class="icon-btn">›</button>
+          </div>
+        </div>
+
+        <div class="cards-resumo" style="grid-template-columns: repeat(3, 1fr); max-width: 620px;">
+          <div class="card stat"><span class="stat-label">Gasto no escopo</span><span class="stat-value alerta" id="dash-total-gasto">R$ 0,00</span></div>
+          <div class="card stat"><span class="stat-label">Ganhos do mês</span><span class="stat-value positivo" id="dash-total-ganhos">R$ 0,00</span></div>
+          <div class="card stat"><span class="stat-label">Saldo do mês</span><span class="stat-value" id="dash-saldo">R$ 0,00</span></div>
+        </div>
+
+        <div class="charts-row">
+          <div class="panel">
+            <div class="panel-header"><h2>Gastos por categoria</h2></div>
+            <div class="chart-wrap" id="dash-donut"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><h2>Onde mais gastou</h2></div>
+            <table class="table" id="dash-tabela-estabelecimentos">
+              <thead><tr><th>Estabelecimento</th><th>Vezes</th><th>Total</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="charts-row" style="grid-template-columns: 1fr 1fr;">
+          <div class="panel">
+            <div class="panel-header"><h2>Entradas x Saídas (tendência)</h2></div>
+            <div class="chart-legend">
+              <span><i style="background:var(--green)"></i>Ganhos</span>
+              <span><i style="background:var(--red)"></i>Gastos (pago + avulsos)</span>
+            </div>
+            <div class="chart-wrap" id="dash-chart-tendencia"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><h2>Tendência de gastos por categoria</h2></div>
+            <div class="chart-wrap" id="dash-chart-tendencia-categoria"></div>
           </div>
         </div>
       </section>
@@ -192,6 +256,37 @@
         </div>
       </section>
 
+      <!-- ===== VIEW: INVESTIMENTOS ===== -->
+      <section id="view-investimentos" class="view">
+        <header class="view-header">
+          <h1>Investimentos</h1>
+          <button class="btn" id="btn-add-investimento">+ Novo investimento</button>
+        </header>
+
+        <div class="disclaimer">🚧 Em desenvolvimento — feature nova, ainda não testada com uso real no dia a dia</div>
+
+        <div class="cards-resumo" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="card stat"><span class="stat-label">Total investido</span><span class="stat-value" id="inv-total-investido">R$ 0,00</span></div>
+          <div class="card stat"><span class="stat-label">Valor atual</span><span class="stat-value" id="inv-total-atual">R$ 0,00</span></div>
+          <div class="card stat"><span class="stat-label">Rendimento</span><span class="stat-value" id="inv-rendimento">R$ 0,00</span></div>
+          <div class="card stat"><span class="stat-label">Rendimento %</span><span class="stat-value" id="inv-rendimento-pct">0%</span></div>
+        </div>
+
+        <div class="charts-row">
+          <div class="panel">
+            <div class="panel-header"><h2>Distribuição por tipo</h2></div>
+            <div class="chart-wrap" id="inv-donut"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><h2>Posições</h2></div>
+            <table class="table" id="tabela-investimentos">
+              <thead><tr><th>Nome</th><th>Tipo</th><th>Investido</th><th>Atual</th><th>Rendimento</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== VIEW: EXTRATOS ===== -->
       <section id="view-extratos" class="view">
         <header class="view-header">
@@ -203,6 +298,12 @@
           <div class="field" style="margin-bottom:0">
             <label>Conta</label>
             <select id="extrato-select-conta"></select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Categoria</label>
+            <select id="extrato-select-categoria-filtro">
+              <option value="">Todas</option>
+            </select>
           </div>
           <div class="month-nav">
             <button id="extrato-mes-prev" class="icon-btn">‹</button>

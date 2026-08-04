@@ -86,6 +86,17 @@ CREATE TABLE IF NOT EXISTS transacoes_importadas (
   fatura_ano INTEGER,
   fatura_mes INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS investimentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL,
+  tipo TEXT NOT NULL DEFAULT 'Outros',
+  valor_investido REAL NOT NULL DEFAULT 0,
+  valor_atual REAL NOT NULL DEFAULT 0,
+  data_inicio TEXT,
+  observacao TEXT,
+  ativo INTEGER NOT NULL DEFAULT 1
+);
 `);
 
 // migração: bancos criados antes da tabela fontes_renda não têm a coluna fonte_id em ganhos

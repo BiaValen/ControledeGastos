@@ -54,6 +54,18 @@ contextBridge.exposeInMainWorld('gastosAPI', {
   resumo: {
     mes: (ano, mes) => ipcRenderer.invoke('resumo:mes', ano, mes),
   },
+  dashboard: {
+    gastosPorCategoria: (ano, mes, contaId) => ipcRenderer.invoke('dashboard:gastosPorCategoria', ano, mes, contaId),
+    topEstabelecimentos: (ano, mes, contaId) => ipcRenderer.invoke('dashboard:topEstabelecimentos', ano, mes, contaId),
+  },
+  investimentos: {
+    list: (somenteAtivos) => ipcRenderer.invoke('investimentos:list', somenteAtivos),
+    criar: (inv) => ipcRenderer.invoke('investimentos:criar', inv),
+    atualizar: (id, inv) => ipcRenderer.invoke('investimentos:atualizar', id, inv),
+    remover: (id) => ipcRenderer.invoke('investimentos:remover', id),
+    resumo: () => ipcRenderer.invoke('investimentos:resumo'),
+    porTipo: () => ipcRenderer.invoke('investimentos:porTipo'),
+  },
   historico: {
     meses: () => ipcRenderer.invoke('historico:meses'),
   },

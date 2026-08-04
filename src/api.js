@@ -326,6 +326,127 @@ function listHistoricoMeses() {
   return rows.map(r => ({ ano: r.ano, mes: r.mes, ...resumoMesSomenteLeitura(r.ano, r.mes) }));
 }
 
+// ---------- Dashboard ----------
+function mesclarCategorias(linhas) {
+  const mapa = new Map();
+  for (const l of linhas) {
+    const chave = l.categoria_nome || 'Sem categoria';
+    if (!mapa.has(chave)) mapa.set(chave, { categoria_nome: chave, categoria_cor: l.categoria_cor || '#6b7280', total: 0 });
+    mapa.get(chave).total += l.total || 0;
+  }
+  return [...mapa.values()].filter((x) => x.total > 0.004).sort((a, b) => b.total - a.total);
+}
+
+// combina: contas fixas/variáveis SEM ser cartão (pelo categoria da própria conta) +
+// transações de TODOS os cartões (categoria da transação) + gastos avulsos.
+// Não usa o valor agregado da fatura do cartão aqui (senão contaria duas vezes o
+// mesmo gasto: uma vez como "fatura" sem categoria, outra vez já detalhado por dentro).
+function gastosPorCategoriaTudo(ano, mes) {
+  const lancContas = db.prepare(`
+    SELECT categorias.nome AS categoria_nome, categorias.cor AS categoria_cor, SUM(lancamentos.valor) AS total
+    FROM lancamentos
+    JOIN contas ON contas.id = lancamentos.conta_id
+    LEFT JOIN categorias ON categorias.id = contas.categoria_id
+    WHERE lancamentos.ano = ? AND lancamentos.mes = ? AND lancamentos.pago = 1 AND contas.eh_cartao = 0
+    GROUP BY categorias.id
+  `).all(ano, mes);
+
+  const transCartoes = db.prepare(`
+    SELECT categorias.nome AS categoria_nome, categorias.cor AS categoria_cor, SUM(-transacoes_importadas.valor) AS total
+    FROM transacoes_importadas
+    JOIN contas ON contas.id = transacoes_importadas.conta_id
+    LEFT JOIN categorias ON categorias.id = transacoes_importadas.categoria_id
+    WHERE transacoes_importadas.fatura_ano = ? AND transacoes_importadas.fatura_mes = ?
+      AND transacoes_importadas.valor < 0 AND contas.eh_cartao = 1
+    GROUP BY categorias.id
+  `).all(ano, mes);
+
+  const avulsos = db.prepare(`
+    SELECT categorias.nome AS categoria_nome, categorias.cor AS categoria_cor, SUM(gastos_avulsos.valor) AS total
+    FROM gastos_avulsos LEFT JOIN categorias ON categorias.id = gastos_avulsos.categoria_id
+    WHERE data LIKE ?
+    GROUP BY categorias.id
+  `).all(`${ano}-${String(mes).padStart(2, '0')}%`);
+
+  return mesclarCategorias([...lancContas, ...transCartoes, ...avulsos]);
+}
+
+function gastosPorCategoriaCartao(contaId, ano, mes) {
+  const rows = db.prepare(`
+    SELECT categorias.nome AS categoria_nome, categorias.cor AS categoria_cor, SUM(-transacoes_importadas.valor) AS total
+    FROM transacoes_importadas LEFT JOIN categorias ON categorias.id = transacoes_importadas.categoria_id
+    WHERE conta_id = ? AND fatura_ano = ? AND fatura_mes = ? AND valor < 0
+    GROUP BY categorias.id
+  `).all(contaId, ano, mes);
+  return mesclarCategorias(rows);
+}
+
+function gastosPorCategoria(ano, mes, contaId) {
+  return contaId ? gastosPorCategoriaCartao(contaId, ano, mes) : gastosPorCategoriaTudo(ano, mes);
+}
+
+// ranking de estabelecimentos que mais gastou no mês (só transações de cartão importadas).
+// junta parcelas do mesmo lugar (tira o "(Parcela x/y)") pra não espalhar o mesmo
+// estabelecimento em várias linhas do ranking.
+function topEstabelecimentos(ano, mes, contaId, limite) {
+  let sql = `
+    SELECT descricao, -valor AS valor FROM transacoes_importadas
+    WHERE fatura_ano = ? AND fatura_mes = ? AND valor < 0
+  `;
+  const params = [ano, mes];
+  if (contaId) { sql += ' AND conta_id = ?'; params.push(contaId); }
+  const rows = db.prepare(sql).all(...params);
+
+  const mapa = new Map();
+  for (const r of rows) {
+    const chave = removerSufixoParcela(r.descricao);
+    if (!mapa.has(chave)) mapa.set(chave, { descricao: chave, total: 0, qtd: 0 });
+    const item = mapa.get(chave);
+    item.total += r.valor;
+    item.qtd += 1;
+  }
+  return [...mapa.values()].sort((a, b) => b.total - a.total).slice(0, limite || 8);
+}
+
+// ---------- Investimentos ----------
+function listInvestimentos(somenteAtivos) {
+  const sql = `SELECT * FROM investimentos ${somenteAtivos ? 'WHERE ativo = 1' : ''} ORDER BY nome`;
+  return db.prepare(sql).all();
+}
+function criarInvestimento(inv) {
+  const info = db.prepare(`
+    INSERT INTO investimentos (nome, tipo, valor_investido, valor_atual, data_inicio, observacao, ativo)
+    VALUES (?, ?, ?, ?, ?, ?, 1)
+  `).run(inv.nome, inv.tipo || 'Outros', inv.valor_investido || 0, inv.valor_atual || 0, inv.data_inicio || null, inv.observacao || null);
+  return info.lastInsertRowid;
+}
+function atualizarInvestimento(id, inv) {
+  db.prepare(`
+    UPDATE investimentos SET nome = ?, tipo = ?, valor_investido = ?, valor_atual = ?, data_inicio = ?, observacao = ?, ativo = ?
+    WHERE id = ?
+  `).run(inv.nome, inv.tipo || 'Outros', inv.valor_investido || 0, inv.valor_atual || 0, inv.data_inicio || null, inv.observacao || null, inv.ativo === false ? 0 : 1, id);
+}
+function removerInvestimento(id) {
+  db.prepare('DELETE FROM investimentos WHERE id = ?').run(id);
+}
+function resumoInvestimentos() {
+  const ativos = listInvestimentos(true);
+  const totalInvestido = ativos.reduce((s, i) => s + i.valor_investido, 0);
+  const totalAtual = ativos.reduce((s, i) => s + i.valor_atual, 0);
+  const rendimento = totalAtual - totalInvestido;
+  const rendimentoPct = totalInvestido > 0 ? (rendimento / totalInvestido) * 100 : 0;
+  return { totalInvestido, totalAtual, rendimento, rendimentoPct };
+}
+function investimentosPorTipo() {
+  const ativos = listInvestimentos(true);
+  const mapa = new Map();
+  for (const inv of ativos) {
+    if (!mapa.has(inv.tipo)) mapa.set(inv.tipo, 0);
+    mapa.set(inv.tipo, mapa.get(inv.tipo) + inv.valor_atual);
+  }
+  return [...mapa.entries()].map(([tipo, total]) => ({ tipo, total })).filter((x) => x.total > 0).sort((a, b) => b.total - a.total);
+}
+
 module.exports = {
   listCategorias, criarCategoria, atualizarCategoria, removerCategoria,
   listContas, criarConta, atualizarConta, removerConta,
@@ -336,5 +457,8 @@ module.exports = {
   listRegras, criarRegra, removerRegra, categorizarPorRegra, reaplicarRegras,
   importarExtrato, listTransacoes, atualizarCategoriaTransacao, removerTransacao,
   somaTransacoesDoMes, aplicarSomaAoLancamento,
+  gastosPorCategoria, topEstabelecimentos,
+  listInvestimentos, criarInvestimento, atualizarInvestimento, removerInvestimento,
+  resumoInvestimentos, investimentosPorTipo,
   resumoMes, listHistoricoMeses,
 };

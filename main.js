@@ -81,6 +81,16 @@ function registerHandlers() {
 
     'resumo:mes': (_e, ano, mes) => api.resumoMes(ano, mes),
     'historico:meses': () => api.listHistoricoMeses(),
+
+    'dashboard:gastosPorCategoria': (_e, ano, mes, contaId) => api.gastosPorCategoria(ano, mes, contaId),
+    'dashboard:topEstabelecimentos': (_e, ano, mes, contaId) => api.topEstabelecimentos(ano, mes, contaId),
+
+    'investimentos:list': (_e, somenteAtivos) => api.listInvestimentos(somenteAtivos),
+    'investimentos:criar': (_e, inv) => api.criarInvestimento(inv),
+    'investimentos:atualizar': (_e, id, inv) => api.atualizarInvestimento(id, inv),
+    'investimentos:remover': (_e, id) => api.removerInvestimento(id),
+    'investimentos:resumo': () => api.resumoInvestimentos(),
+    'investimentos:porTipo': () => api.investimentosPorTipo(),
   };
   for (const [canal, fn] of Object.entries(handlers)) {
     ipcMain.handle(canal, fn);
