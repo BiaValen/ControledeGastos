@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS contas (
   categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
   dia_vencimento INTEGER,
   valor_padrao REAL,
-  ativa INTEGER NOT NULL DEFAULT 1
+  ativa INTEGER NOT NULL DEFAULT 1,
+  eh_cartao INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS lancamentos (
@@ -89,6 +90,12 @@ CREATE TABLE IF NOT EXISTS transacoes_importadas (
 const colunasGanhos = db.prepare("PRAGMA table_info(ganhos)").all().map((c) => c.name);
 if (!colunasGanhos.includes('fonte_id')) {
   db.exec('ALTER TABLE ganhos ADD COLUMN fonte_id INTEGER REFERENCES fontes_renda(id) ON DELETE SET NULL');
+}
+
+// migração: bancos criados antes do campo eh_cartao em contas
+const colunasContas = db.prepare("PRAGMA table_info(contas)").all().map((c) => c.name);
+if (!colunasContas.includes('eh_cartao')) {
+  db.exec('ALTER TABLE contas ADD COLUMN eh_cartao INTEGER NOT NULL DEFAULT 0');
 }
 
 const categoriaCount = db.prepare('SELECT COUNT(*) AS n FROM categorias').get().n;

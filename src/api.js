@@ -26,14 +26,14 @@ function listContas(somenteAtivas) {
 }
 function criarConta(c) {
   const info = db.prepare(
-    'INSERT INTO contas (nome, tipo, categoria_id, dia_vencimento, valor_padrao, ativa) VALUES (?, ?, ?, ?, ?, 1)'
-  ).run(c.nome, c.tipo, c.categoria_id || null, c.dia_vencimento || null, c.valor_padrao || null);
+    'INSERT INTO contas (nome, tipo, categoria_id, dia_vencimento, valor_padrao, ativa, eh_cartao) VALUES (?, ?, ?, ?, ?, 1, ?)'
+  ).run(c.nome, c.tipo, c.categoria_id || null, c.dia_vencimento || null, c.valor_padrao || null, c.eh_cartao ? 1 : 0);
   return info.lastInsertRowid;
 }
 function atualizarConta(id, c) {
   db.prepare(
-    'UPDATE contas SET nome = ?, tipo = ?, categoria_id = ?, dia_vencimento = ?, valor_padrao = ?, ativa = ? WHERE id = ?'
-  ).run(c.nome, c.tipo, c.categoria_id || null, c.dia_vencimento || null, c.valor_padrao || null, c.ativa ? 1 : 0, id);
+    'UPDATE contas SET nome = ?, tipo = ?, categoria_id = ?, dia_vencimento = ?, valor_padrao = ?, ativa = ?, eh_cartao = ? WHERE id = ?'
+  ).run(c.nome, c.tipo, c.categoria_id || null, c.dia_vencimento || null, c.valor_padrao || null, c.ativa ? 1 : 0, c.eh_cartao ? 1 : 0, id);
 }
 function removerConta(id) {
   const temLancamentos = db.prepare('SELECT COUNT(*) AS n FROM lancamentos WHERE conta_id = ?').get(id).n;

@@ -364,7 +364,7 @@ async function carregarContasCadastro() {
   const contas = await api.contas.list(false);
   const tbody = document.querySelector('#tabela-contas-cadastro tbody');
   tbody.innerHTML = contas.length === 0
-    ? '<tr><td colspan="7" class="empty-hint">Nenhuma conta cadastrada ainda.</td></tr>'
+    ? '<tr><td colspan="8" class="empty-hint">Nenhuma conta cadastrada ainda.</td></tr>'
     : '';
   contas.forEach((c) => {
     const tr = document.createElement('tr');
@@ -374,6 +374,7 @@ async function carregarContasCadastro() {
       <td>${c.categoria_nome ? `<span class="badge"><span class="badge-dot" style="background:${c.categoria_cor}"></span>${c.categoria_nome}</span>` : '—'}</td>
       <td>${c.dia_vencimento ? 'dia ' + c.dia_vencimento : '—'}</td>
       <td>${c.valor_padrao != null ? fmtMoeda(c.valor_padrao) : '—'}</td>
+      <td>${c.eh_cartao ? 'Sim' : 'Não'}</td>
       <td>${c.ativa ? 'Sim' : 'Não'}</td>
       <td>
         <button class="icon-action" data-id="${c.id}" data-action="edit-conta">✎</button>
@@ -400,6 +401,7 @@ function abrirModalConta(conta) {
     { key: 'categoria_id', label: 'Categoria', type: 'select', options: opcoesCategorias('despesa') },
     { key: 'dia_vencimento', label: 'Dia de vencimento', type: 'number' },
     { key: 'valor_padrao', label: 'Valor padrão (se fixa)', type: 'number', step: '0.01' },
+    { key: 'eh_cartao', label: 'É cartão (aparece na importação de extrato)', type: 'checkbox' },
     { key: 'ativa', label: 'Ativa', type: 'checkbox' },
   ], conta || { ativa: true }, async (dados) => {
     if (conta) await api.contas.atualizar(conta.id, dados);
@@ -564,11 +566,14 @@ async function carregarHistorico() {
 let estadoExtrato = { contaId: null, ano: hoje.getFullYear(), mes: hoje.getMonth() + 1 };
 
 async function popularSelectContasExtrato() {
-  const contas = await api.contas.list(true);
+  const todas = await api.contas.list(true);
+  const contas = todas.filter((c) => c.eh_cartao);
   const select = document.getElementById('extrato-select-conta');
   const valorAtual = estadoExtrato.contaId;
-  select.innerHTML = contas.map((c) => `<option value="${c.id}">${c.nome}</option>`).join('');
-  if (contas.length === 0) return;
+  select.innerHTML = contas.length === 0
+    ? '<option value="">Nenhum cartão cadastrado</option>'
+    : contas.map((c) => `<option value="${c.id}">${c.nome}</option>`).join('');
+  if (contas.length === 0) { estadoExtrato.contaId = null; return; }
   const existeAtual = contas.some((c) => c.id === valorAtual);
   estadoExtrato.contaId = existeAtual ? valorAtual : contas[0].id;
   select.value = estadoExtrato.contaId;
