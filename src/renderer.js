@@ -10,6 +10,34 @@ function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// ícones em SVG (linha, estilo lucide/feather) — sem emoji, ficam consistentes em qualquer sistema
+const ICONE_SVG_ABERTURA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+const ICONES = {
+  carteira: `${ICONE_SVG_ABERTURA}<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>`,
+  tendenciaAlta: `${ICONE_SVG_ABERTURA}<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
+  setaCima: `${ICONE_SVG_ABERTURA}<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`,
+  setaBaixo: `${ICONE_SVG_ABERTURA}<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>`,
+  alvo: `${ICONE_SVG_ABERTURA}<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+  cartao: `${ICONE_SVG_ABERTURA}<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`,
+  engrenagem: `${ICONE_SVG_ABERTURA}<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  lua: `${ICONE_SVG_ABERTURA}<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>`,
+  sol: `${ICONE_SVG_ABERTURA}<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`,
+  repetir: `${ICONE_SVG_ABERTURA}<path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
+  alertaTriangulo: `${ICONE_SVG_ABERTURA}<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  editar: `${ICONE_SVG_ABERTURA}<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>`,
+  excluir: `${ICONE_SVG_ABERTURA}<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  checkCirculo: `${ICONE_SVG_ABERTURA}<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+  relogio: `${ICONE_SVG_ABERTURA}<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+};
+
+function aplicarIconesEstaticos() {
+  document.getElementById('brand-icone').innerHTML = ICONES.carteira;
+  document.getElementById('settings-icone').innerHTML = ICONES.engrenagem;
+  document.getElementById('disclaimer-icone').innerHTML = ICONES.alertaTriangulo;
+  document.getElementById('reaplicar-icone').innerHTML = ICONES.repetir;
+}
+aplicarIconesEstaticos();
+
 // substitui window.alert/confirm — diálogo nativo do Electron trava o foco da janela
 // por um tempo depois de fechar, e os <select> ficam sem abrir até o foco voltar.
 function mostrarToast(mensagem) {
@@ -44,7 +72,7 @@ function confirmarAcao(mensagem) {
 function aplicarTema(tema) {
   document.documentElement.setAttribute('data-theme', tema === 'claro' ? 'light' : 'dark');
   const icone = document.getElementById('theme-icon');
-  icone.textContent = tema === 'claro' ? '☀️' : '🌙';
+  icone.innerHTML = tema === 'claro' ? ICONES.sol : ICONES.lua;
   document.getElementById('btn-theme-toggle').title = tema === 'claro' ? 'Mudar pra tema escuro' : 'Mudar pra tema claro';
 }
 let temaAtual = localStorage.getItem('tema') || 'escuro';
@@ -199,6 +227,14 @@ async function carregarMes() {
     api.resumo.mes(estado.ano, estado.mes),
   ]);
 
+  document.getElementById('mes-icon-ganhos').innerHTML = ICONES.tendenciaAlta;
+  document.getElementById('mes-icon-pago').innerHTML = ICONES.checkCirculo;
+  document.getElementById('mes-icon-pendente').innerHTML = ICONES.relogio;
+  document.getElementById('mes-icon-avulsos').innerHTML = ICONES.cartao;
+  const saldoIconEl = document.getElementById('mes-icon-saldo');
+  saldoIconEl.innerHTML = ICONES.carteira;
+  saldoIconEl.className = 'stat-icon ' + (resumo.saldo >= 0 ? 'stat-icon-blue' : 'stat-icon-red');
+
   document.getElementById('stat-ganhos').textContent = fmtMoeda(resumo.totalGanhos);
   document.getElementById('stat-pago').textContent = fmtMoeda(resumo.totalContasPago);
   document.getElementById('stat-pendente').textContent = fmtMoeda(resumo.totalContasPendente);
@@ -250,8 +286,8 @@ async function carregarMes() {
       <td>${g.categoria_nome ? `<span class="badge"><span class="badge-dot" style="background:${g.categoria_cor}"></span>${g.categoria_nome}</span>` : '—'}</td>
       <td>${fmtMoeda(g.valor)}</td>
       <td>
-        <button class="icon-action" data-id="${g.id}" data-action="edit-ganho">✎</button>
-        <button class="icon-action" data-id="${g.id}" data-action="del-ganho">✕</button>
+        <button class="icon-action" data-id="${g.id}" data-action="edit-ganho">${ICONES.editar}</button>
+        <button class="icon-action" data-id="${g.id}" data-action="del-ganho">${ICONES.excluir}</button>
       </td>
     `;
     tbodyGanhos.appendChild(tr);
@@ -277,7 +313,7 @@ async function carregarMes() {
       <td>${g.descricao}</td>
       <td>${g.categoria_nome ? `<span class="badge"><span class="badge-dot" style="background:${g.categoria_cor}"></span>${g.categoria_nome}</span>` : '—'}</td>
       <td>${fmtMoeda(g.valor)}</td>
-      <td><button class="icon-action" data-id="${g.id}" data-action="del-avulso">✕</button></td>
+      <td><button class="icon-action" data-id="${g.id}" data-action="del-avulso">${ICONES.excluir}</button></td>
     `;
     tbodyAvulsos.appendChild(tr);
   });
@@ -349,8 +385,8 @@ async function carregarFontesRenda() {
       <td>${f.valor_padrao != null ? fmtMoeda(f.valor_padrao) : '—'}</td>
       <td>${f.ativa ? 'Sim' : 'Não'}</td>
       <td>
-        <button class="icon-action" data-id="${f.id}" data-action="edit-fonte">✎</button>
-        <button class="icon-action" data-id="${f.id}" data-action="del-fonte">✕</button>
+        <button class="icon-action" data-id="${f.id}" data-action="edit-fonte">${ICONES.editar}</button>
+        <button class="icon-action" data-id="${f.id}" data-action="del-fonte">${ICONES.excluir}</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -391,6 +427,8 @@ async function carregarGanhosPagina() {
   const totalGeral = ganhos.reduce((s, g) => s + g.valor, 0);
   const prefixMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
   const totalMes = ganhos.filter((g) => g.data.startsWith(prefixMesAtual)).reduce((s, g) => s + g.valor, 0);
+  document.getElementById('ganhos-icon-geral').innerHTML = ICONES.carteira;
+  document.getElementById('ganhos-icon-mes').innerHTML = ICONES.tendenciaAlta;
   document.getElementById('ganhos-total-geral').textContent = fmtMoeda(totalGeral);
   document.getElementById('ganhos-total-mes').textContent = fmtMoeda(totalMes);
 
@@ -407,8 +445,8 @@ async function carregarGanhosPagina() {
       <td>${g.observacao || '—'}</td>
       <td>${fmtMoeda(g.valor)}</td>
       <td>
-        <button class="icon-action" data-id="${g.id}" data-action="edit-ganho-pagina">✎</button>
-        <button class="icon-action" data-id="${g.id}" data-action="del-ganho-pagina">✕</button>
+        <button class="icon-action" data-id="${g.id}" data-action="edit-ganho-pagina">${ICONES.editar}</button>
+        <button class="icon-action" data-id="${g.id}" data-action="del-ganho-pagina">${ICONES.excluir}</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -444,8 +482,8 @@ async function carregarContasCadastro() {
       <td><input type="checkbox" class="checkbox" data-id="${c.id}" data-action="toggle-cartao" ${c.eh_cartao ? 'checked' : ''} /></td>
       <td><input type="checkbox" class="checkbox" data-id="${c.id}" data-action="toggle-ativa" ${c.ativa ? 'checked' : ''} /></td>
       <td>
-        <button class="icon-action" data-id="${c.id}" data-action="edit-conta">✎</button>
-        <button class="icon-action" data-id="${c.id}" data-action="del-conta">✕</button>
+        <button class="icon-action" data-id="${c.id}" data-action="edit-conta">${ICONES.editar}</button>
+        <button class="icon-action" data-id="${c.id}" data-action="del-conta">${ICONES.excluir}</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -504,8 +542,8 @@ async function carregarCategorias() {
       <td>${c.nome}</td>
       <td>${c.tipo === 'ganho' ? 'Ganho' : 'Despesa'}</td>
       <td>
-        <button class="icon-action" data-id="${c.id}" data-action="edit-cat">✎</button>
-        <button class="icon-action" data-id="${c.id}" data-action="del-cat">✕</button>
+        <button class="icon-action" data-id="${c.id}" data-action="edit-cat">${ICONES.editar}</button>
+        <button class="icon-action" data-id="${c.id}" data-action="del-cat">${ICONES.excluir}</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -826,12 +864,18 @@ async function carregarDashboard() {
     api.historico.meses(),
   ]);
 
+  document.getElementById('dash-icon-gasto').innerHTML = ICONES.cartao;
+  document.getElementById('dash-icon-ganhos').innerHTML = ICONES.tendenciaAlta;
+
   const totalGasto = categorias.reduce((s, c) => s + c.total, 0);
   document.getElementById('dash-total-gasto').textContent = fmtMoeda(totalGasto);
   document.getElementById('dash-total-ganhos').textContent = fmtMoeda(resumo.totalGanhos);
   const saldoEl = document.getElementById('dash-saldo');
   saldoEl.textContent = fmtMoeda(resumo.saldo);
   saldoEl.className = 'stat-value ' + (resumo.saldo >= 0 ? 'positivo' : 'alerta');
+  const saldoIconEl = document.getElementById('dash-icon-saldo');
+  saldoIconEl.innerHTML = ICONES.carteira;
+  saldoIconEl.className = 'stat-icon ' + (resumo.saldo >= 0 ? 'stat-icon-blue' : 'stat-icon-red');
 
   renderDonut('dash-donut', categorias);
 
@@ -870,13 +914,12 @@ document.getElementById('dash-mes-next').addEventListener('click', () => {
 let estadoExtrato = { contaId: null, categoriaFiltro: '', ano: hoje.getFullYear(), mes: hoje.getMonth() + 1 };
 
 async function popularSelectContasExtrato() {
-  const todas = await api.contas.list(true);
-  const contas = todas.filter((c) => c.eh_cartao);
+  const contas = await api.contas.list(true);
   const select = document.getElementById('extrato-select-conta');
   const valorAtual = estadoExtrato.contaId;
   select.innerHTML = contas.length === 0
-    ? '<option value="">Nenhum cartão cadastrado</option>'
-    : contas.map((c) => `<option value="${c.id}">${c.nome}</option>`).join('');
+    ? '<option value="">Nenhuma conta cadastrada</option>'
+    : contas.map((c) => `<option value="${c.id}">${c.nome}${c.eh_cartao ? '' : ' (conta)'}</option>`).join('');
   if (contas.length === 0) { estadoExtrato.contaId = null; return; }
   const existeAtual = contas.some((c) => c.id === valorAtual);
   estadoExtrato.contaId = existeAtual ? valorAtual : contas[0].id;
@@ -931,8 +974,8 @@ async function carregarTransacoesExtrato() {
       <td>${selectHtml}</td>
       <td style="color:${t.valor < 0 ? 'var(--red)' : 'var(--green)'}">${fmtMoeda(t.valor)}</td>
       <td>
-        <button class="icon-action" data-id="${t.id}" data-action="salvar-regra-transacao" title="Aplicar essa categoria sempre que aparecer essa descrição">🔁</button>
-        <button class="icon-action" data-id="${t.id}" data-action="del-transacao">✕</button>
+        <button class="icon-action" data-id="${t.id}" data-action="salvar-regra-transacao" title="Aplicar essa categoria sempre que aparecer essa descrição">${ICONES.repetir}</button>
+        <button class="icon-action" data-id="${t.id}" data-action="del-transacao">${ICONES.excluir}</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -987,7 +1030,7 @@ async function carregarRegras() {
     tr.innerHTML = `
       <td>${r.padrao}</td>
       <td>${r.categoria_nome ? `<span class="badge"><span class="badge-dot" style="background:${r.categoria_cor}"></span>${r.categoria_nome}</span>` : '—'}</td>
-      <td><button class="icon-action" data-id="${r.id}" data-action="del-regra">✕</button></td>
+      <td><button class="icon-action" data-id="${r.id}" data-action="del-regra">${ICONES.excluir}</button></td>
     `;
     tbody.appendChild(tr);
   });
@@ -1034,7 +1077,14 @@ document.getElementById('btn-importar-ofx').addEventListener('click', async () =
   if (!estadoExtrato.contaId) { mostrarToast('Cadastre uma conta primeiro (aba Contas).'); return; }
   const caminho = await api.extrato.selecionarArquivo();
   if (!caminho) return;
-  const confirmado = await confirmarAcao(`Importar esse arquivo como a fatura de ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano}? Isso SUBSTITUI inteiro o que já tinha sido importado pra essa conta nesse mês (categoria já definida é preservada quando a mesma descrição+valor aparecer de novo).`);
+  // detecta automaticamente pra qual mês essa fatura/extrato é, pela data das próprias
+  // transações do arquivo, em vez de depender do usuário lembrar de mudar o seletor de mês
+  const detectado = await api.extrato.detectarMes(estadoExtrato.contaId, caminho);
+  if (detectado) {
+    estadoExtrato.ano = detectado.ano;
+    estadoExtrato.mes = detectado.mes;
+  }
+  const confirmado = await confirmarAcao(`Importar esse arquivo como a fatura de ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano}${detectado ? ' (detectado automaticamente pelas datas do arquivo)' : ''}? Isso SUBSTITUI inteiro o que já tinha sido importado pra essa conta nesse mês (categoria já definida é preservada quando a mesma descrição+valor aparecer de novo).`);
   if (!confirmado) return;
   const resultado = await api.extrato.importar(estadoExtrato.contaId, caminho, estadoExtrato.ano, estadoExtrato.mes);
   mostrarToast(`${resultado.importadas} transação(ões) importada(s) pra ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano}.`);
@@ -1087,6 +1137,10 @@ async function carregarInvestimentos() {
     api.investimentos.porTipo(),
   ]);
 
+  document.getElementById('inv-icon-investido').innerHTML = ICONES.carteira;
+  document.getElementById('inv-icon-atual').innerHTML = ICONES.tendenciaAlta;
+  document.getElementById('inv-icon-pct').innerHTML = ICONES.alvo;
+
   document.getElementById('inv-total-investido').textContent = fmtMoeda(resumo.totalInvestido);
   document.getElementById('inv-total-atual').textContent = fmtMoeda(resumo.totalAtual);
   const rendEl = document.getElementById('inv-rendimento');
@@ -1095,6 +1149,9 @@ async function carregarInvestimentos() {
   const rendPctEl = document.getElementById('inv-rendimento-pct');
   rendPctEl.textContent = `${resumo.rendimentoPct >= 0 ? '+' : ''}${resumo.rendimentoPct.toFixed(1)}%`;
   rendPctEl.className = 'stat-value ' + (resumo.rendimentoPct >= 0 ? 'positivo' : 'alerta');
+  const rendIconEl = document.getElementById('inv-rendimento-icon');
+  rendIconEl.innerHTML = resumo.rendimento >= 0 ? ICONES.setaCima : ICONES.setaBaixo;
+  rendIconEl.className = 'stat-icon ' + (resumo.rendimento >= 0 ? 'stat-icon-green' : 'stat-icon-red');
 
   const dadosDonut = porTipo.map((t) => ({ categoria_nome: t.tipo, categoria_cor: corDoTipoInvestimento(t.tipo), total: t.total }));
   renderDonut('inv-donut', dadosDonut);
@@ -1114,8 +1171,8 @@ async function carregarInvestimentos() {
       <td><input type="number" step="0.01" class="valor-input" value="${inv.valor_atual}" data-id="${inv.id}" data-action="valor-atual" /></td>
       <td style="color:${rendimento >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtMoeda(rendimento)}</td>
       <td>
-        <button class="icon-action" data-id="${inv.id}" data-action="edit-investimento">✎</button>
-        <button class="icon-action" data-id="${inv.id}" data-action="del-investimento">✕</button>
+        <button class="icon-action" data-id="${inv.id}" data-action="edit-investimento">${ICONES.editar}</button>
+        <button class="icon-action" data-id="${inv.id}" data-action="del-investimento">${ICONES.excluir}</button>
       </td>
     `;
     tbody.appendChild(tr);

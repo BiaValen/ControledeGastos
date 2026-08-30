@@ -24,6 +24,9 @@ function listContas(somenteAtivas) {
                ORDER BY dia_vencimento IS NULL, dia_vencimento, contas.nome`;
   return db.prepare(sql).all();
 }
+function getConta(id) {
+  return db.prepare('SELECT * FROM contas WHERE id = ?').get(id);
+}
 function criarConta(c) {
   const info = db.prepare(
     'INSERT INTO contas (nome, tipo, categoria_id, dia_vencimento, valor_padrao, ativa, eh_cartao) VALUES (?, ?, ?, ?, ?, 1, ?)'
@@ -449,7 +452,7 @@ function investimentosPorTipo() {
 
 module.exports = {
   listCategorias, criarCategoria, atualizarCategoria, removerCategoria,
-  listContas, criarConta, atualizarConta, removerConta,
+  listContas, getConta, criarConta, atualizarConta, removerConta,
   listLancamentosDoMes, atualizarLancamento,
   listFontesRenda, criarFonteRenda, atualizarFonteRenda, removerFonteRenda,
   listGanhos, listGanhosDoMes, criarGanho, atualizarGanho, removerGanho,

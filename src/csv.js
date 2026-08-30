@@ -50,13 +50,16 @@ function dataParaISO(raw) {
 
 function valorParaNumero(raw) {
   const limpo = raw.replace(/R\$\s*/i, '').trim();
-  // formato brasileiro: ponto de milhar, vírgula decimal (ex: "1.488,82")
-  const semMilhar = limpo.replace(/\./g, '').replace(',', '.');
-  const valor = parseFloat(semMilhar);
+  // se tem vírgula, é formato brasileiro (ponto de milhar, vírgula decimal: "1.488,82")
+  // se não tem vírgula mas tem ponto, o ponto já É o decimal (ex: "-75.00", export tipo Nubank/internacional)
+  const normalizado = limpo.includes(',')
+    ? limpo.replace(/\./g, '').replace(',', '.')
+    : limpo;
+  const valor = parseFloat(normalizado);
   return isNaN(valor) ? null : valor;
 }
 
-function parseCsv(conteudo) {
+function parseCsv(conteudo, ehCartao) {
   const linhas = conteudo.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (linhas.length < 2) return [];
 
@@ -83,15 +86,20 @@ function parseCsv(conteudo) {
     const ehParcela = /parcela/i.test(tipoRaw);
     const descricao = ehParcela ? `${descricaoBase} (${tipoRaw})` : descricaoBase;
     if (!dataISO || valorLido === null || !descricao) return null;
-    // algumas faturas já vêm com sinal explícito: positivo = cobrança, negativo = crédito/estorno/pagamento.
-    // nesse caso só inverte (nosso padrão é negativo = gasto, positivo = crédito).
-    // quando não vem sinal nenhum, tudo é cobrança, exceto o pagamento da fatura (reconhecido pelo texto).
     let valor;
-    if (/-/.test(valorCampo)) {
-      valor = -valorLido;
+    if (ehCartao) {
+      // fatura de cartão: positivo = cobrança, negativo = crédito/estorno/pagamento.
+      // nosso padrão é o oposto (negativo = gasto, positivo = crédito), então inverte.
+      // quando não vem sinal nenhum, tudo é cobrança, exceto o pagamento da fatura (reconhecido pelo texto).
+      if (/-/.test(valorCampo)) {
+        valor = -valorLido;
+      } else {
+        const ehCredito = /PAGAMENTO\s+DE\s+FATURA/i.test(descricao);
+        valor = ehCredito ? valorLido : -valorLido;
+      }
     } else {
-      const ehCredito = /PAGAMENTO\s+DE\s+FATURA/i.test(descricao);
-      valor = ehCredito ? valorLido : -valorLido;
+      // extrato de conta corrente: já vem com o sinal certo (negativo = saída, positivo = entrada)
+      valor = valorLido;
     }
     return { data: dataISO, valor, descricao, fitid: null };
   }).filter(Boolean);

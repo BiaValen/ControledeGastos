@@ -6,10 +6,10 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 
-# build/empacotamento futuro (electron-builder)
+# saída do electron-builder (instalador gerado) — build/ tem os fontes do ícone, esse fica
 dist/
 out/
-build/
+release/
 
 # logs e lixo de SO
 *.log

@@ -8,24 +8,24 @@
 <body>
   <div class="app">
     <nav class="topbar">
-      <div class="brand">💰 Gastos</div>
+      <div class="brand"><span class="brand-icon" id="brand-icone"></span> Gastos</div>
       <div class="nav-items">
         <button class="nav-item" data-view="dashboard">Dashboard</button>
         <button class="nav-item active" data-view="mes">Mês atual</button>
         <button class="nav-item" data-view="ganhos">Ganhos</button>
         <button class="nav-item" data-view="contas">Contas</button>
-        <button class="nav-item" data-view="extratos">Cartões</button>
+        <button class="nav-item" data-view="extratos">Extratos</button>
         <button class="nav-item" data-view="historico">Histórico</button>
         <button class="nav-item" data-view="investimentos">Investimentos</button>
       </div>
       <div class="settings-wrap">
-        <button class="theme-toggle-icon" id="btn-settings" title="Configurações" aria-label="Configurações">⚙️</button>
+        <button class="theme-toggle-icon" id="btn-settings" title="Configurações" aria-label="Configurações"><span id="settings-icone"></span></button>
         <div class="settings-menu" id="settings-menu">
           <button class="nav-item settings-menu-item" data-view="categorias">Categorias</button>
         </div>
       </div>
       <button class="theme-toggle-icon" id="btn-theme-toggle" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
-        <span id="theme-icon">🌙</span>
+        <span id="theme-icon"></span>
       </button>
     </nav>
 
@@ -40,31 +40,36 @@
           </div>
         </header>
 
-        <div class="cards-resumo">
-          <div class="card stat">
+        <div class="cards-resumo stat-cards-v2">
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-green" id="mes-icon-ganhos"></span>
             <span class="stat-label">Ganhos</span>
             <span class="stat-value positivo" id="stat-ganhos">R$ 0,00</span>
           </div>
-          <div class="card stat">
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-blue" id="mes-icon-pago"></span>
             <span class="stat-label">Pago</span>
             <span class="stat-value" id="stat-pago">R$ 0,00</span>
           </div>
-          <div class="card stat">
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-amber" id="mes-icon-pendente"></span>
             <span class="stat-label">Pendente</span>
             <span class="stat-value alerta" id="stat-pendente">R$ 0,00</span>
           </div>
-          <div class="card stat">
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-purple" id="mes-icon-avulsos"></span>
             <span class="stat-label">Gastos avulsos</span>
             <span class="stat-value" id="stat-avulsos">R$ 0,00</span>
           </div>
-          <div class="card stat">
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-blue" id="mes-icon-saldo"></span>
             <span class="stat-label">Saldo</span>
             <span class="stat-value" id="stat-saldo">R$ 0,00</span>
           </div>
         </div>
 
         <div class="grid-2">
-          <div class="panel">
+          <div class="panel panel-v2">
             <div class="panel-header">
               <h2>Contas do mês</h2>
             </div>
@@ -77,7 +82,7 @@
           </div>
 
           <div class="stack">
-            <div class="panel">
+            <div class="panel panel-v2">
               <div class="panel-header">
                 <h2>Ganhos</h2>
                 <button class="btn-small" id="btn-add-ganho">+ Adicionar</button>
@@ -88,7 +93,7 @@
               </table>
             </div>
 
-            <div class="panel">
+            <div class="panel panel-v2">
               <div class="panel-header">
                 <h2>Gastos avulsos</h2>
                 <button class="btn-small" id="btn-add-avulso">+ Adicionar</button>
@@ -122,18 +127,30 @@
           </div>
         </div>
 
-        <div class="cards-resumo" style="grid-template-columns: repeat(3, 1fr); max-width: 620px;">
-          <div class="card stat"><span class="stat-label">Gasto no escopo</span><span class="stat-value alerta" id="dash-total-gasto">R$ 0,00</span></div>
-          <div class="card stat"><span class="stat-label">Ganhos do mês</span><span class="stat-value positivo" id="dash-total-ganhos">R$ 0,00</span></div>
-          <div class="card stat"><span class="stat-label">Saldo do mês</span><span class="stat-value" id="dash-saldo">R$ 0,00</span></div>
+        <div class="cards-resumo stat-cards-v2" style="grid-template-columns: repeat(3, 1fr); max-width: 620px;">
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-red" id="dash-icon-gasto"></span>
+            <span class="stat-label">Gasto no escopo</span>
+            <span class="stat-value alerta" id="dash-total-gasto">R$ 0,00</span>
+          </div>
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-green" id="dash-icon-ganhos"></span>
+            <span class="stat-label">Ganhos do mês</span>
+            <span class="stat-value positivo" id="dash-total-ganhos">R$ 0,00</span>
+          </div>
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-blue" id="dash-icon-saldo"></span>
+            <span class="stat-label">Saldo do mês</span>
+            <span class="stat-value" id="dash-saldo">R$ 0,00</span>
+          </div>
         </div>
 
         <div class="charts-row">
-          <div class="panel">
+          <div class="panel panel-v2">
             <div class="panel-header"><h2>Gastos por categoria</h2></div>
             <div class="chart-wrap" id="dash-donut"></div>
           </div>
-          <div class="panel">
+          <div class="panel panel-v2">
             <div class="panel-header"><h2>Onde mais gastou</h2></div>
             <table class="table" id="dash-tabela-estabelecimentos">
               <thead><tr><th>Estabelecimento</th><th>Vezes</th><th>Total</th></tr></thead>
@@ -143,7 +160,7 @@
         </div>
 
         <div class="charts-row" style="grid-template-columns: 1fr 1fr;">
-          <div class="panel">
+          <div class="panel panel-v2">
             <div class="panel-header"><h2>Entradas x Saídas (tendência)</h2></div>
             <div class="chart-legend">
               <span><i style="background:var(--green)"></i>Ganhos</span>
@@ -152,7 +169,7 @@
             <div class="chart-wrap" id="dash-chart-tendencia"></div>
           </div>
 
-          <div class="panel">
+          <div class="panel panel-v2">
             <div class="panel-header"><h2>Tendência de gastos por categoria</h2></div>
             <div class="chart-wrap" id="dash-chart-tendencia-categoria"></div>
           </div>
@@ -165,17 +182,19 @@
           <h1>Ganhos</h1>
           <button class="btn" id="btn-add-ganho-pagina">+ Novo ganho</button>
         </header>
-        <div class="cards-resumo" style="grid-template-columns: repeat(2, 1fr); max-width: 480px;">
-          <div class="card stat">
+        <div class="cards-resumo stat-cards-v2" style="grid-template-columns: repeat(2, 1fr); max-width: 480px;">
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-blue" id="ganhos-icon-geral"></span>
             <span class="stat-label">Total lançado</span>
             <span class="stat-value positivo" id="ganhos-total-geral">R$ 0,00</span>
           </div>
-          <div class="card stat">
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-green" id="ganhos-icon-mes"></span>
             <span class="stat-label">Este mês</span>
             <span class="stat-value positivo" id="ganhos-total-mes">R$ 0,00</span>
           </div>
         </div>
-        <div class="panel">
+        <div class="panel panel-v2">
           <div class="panel-header">
             <h2>Fontes de renda recorrente</h2>
             <button class="btn-small" id="btn-add-fonte-renda">+ Nova fonte</button>
@@ -187,7 +206,7 @@
           </table>
         </div>
 
-        <div class="panel">
+        <div class="panel panel-v2">
           <table class="table" id="tabela-ganhos-pagina">
             <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Observação</th><th>Valor</th><th></th></tr></thead>
             <tbody></tbody>
@@ -201,7 +220,7 @@
           <h1>Contas cadastradas</h1>
           <button class="btn" id="btn-add-conta">+ Nova conta</button>
         </header>
-        <div class="panel">
+        <div class="panel panel-v2">
           <table class="table" id="tabela-contas-cadastro">
             <thead><tr><th>Nome</th><th>Tipo</th><th>Categoria</th><th>Venc.</th><th>Valor padrão</th><th>Cartão</th><th>Ativa</th><th></th></tr></thead>
             <tbody></tbody>
@@ -215,7 +234,7 @@
           <h1>Categorias</h1>
           <button class="btn" id="btn-add-categoria">+ Nova categoria</button>
         </header>
-        <div class="panel">
+        <div class="panel panel-v2">
           <table class="table" id="tabela-categorias">
             <thead><tr><th>Cor</th><th>Nome</th><th>Tipo</th><th></th></tr></thead>
             <tbody></tbody>
@@ -230,7 +249,7 @@
         </header>
 
         <div class="charts-row">
-          <div class="panel">
+          <div class="panel panel-v2">
             <div class="panel-header"><h2>Ganhos x Gastos por mês</h2></div>
             <div class="chart-legend">
               <span><i style="background:var(--green)"></i>Ganhos</span>
@@ -238,7 +257,7 @@
             </div>
             <div class="chart-wrap" id="chart-ganhos-gastos"></div>
           </div>
-          <div class="panel">
+          <div class="panel panel-v2">
             <div class="panel-header"><h2>Saldo por mês</h2></div>
             <div class="chart-legend">
               <span><i style="background:var(--green)"></i>Positivo</span>
@@ -248,7 +267,7 @@
           </div>
         </div>
 
-        <div class="panel">
+        <div class="panel panel-v2">
           <table class="table" id="tabela-historico">
             <thead><tr><th>Mês</th><th>Ganhos</th><th>Pago</th><th>Pendente</th><th>Avulsos</th><th>Saldo</th></tr></thead>
             <tbody></tbody>
@@ -257,27 +276,43 @@
       </section>
 
       <!-- ===== VIEW: INVESTIMENTOS ===== -->
-      <section id="view-investimentos" class="view">
+      <section id="view-investimentos" class="view invest-page">
         <header class="view-header">
           <h1>Investimentos</h1>
-          <button class="btn" id="btn-add-investimento">+ Novo investimento</button>
+          <button class="btn btn-gradient" id="btn-add-investimento">+ Novo investimento</button>
         </header>
 
-        <div class="disclaimer">🚧 Em desenvolvimento — feature nova, ainda não testada com uso real no dia a dia</div>
+        <div class="disclaimer"><span class="disclaimer-icon" id="disclaimer-icone"></span> Em desenvolvimento — feature nova, ainda não testada com uso real no dia a dia.</div>
 
-        <div class="cards-resumo" style="grid-template-columns: repeat(4, 1fr);">
-          <div class="card stat"><span class="stat-label">Total investido</span><span class="stat-value" id="inv-total-investido">R$ 0,00</span></div>
-          <div class="card stat"><span class="stat-label">Valor atual</span><span class="stat-value" id="inv-total-atual">R$ 0,00</span></div>
-          <div class="card stat"><span class="stat-label">Rendimento</span><span class="stat-value" id="inv-rendimento">R$ 0,00</span></div>
-          <div class="card stat"><span class="stat-label">Rendimento %</span><span class="stat-value" id="inv-rendimento-pct">0%</span></div>
+        <div class="cards-resumo stat-cards-v2">
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-blue" id="inv-icon-investido"></span>
+            <span class="stat-label">Total investido</span>
+            <span class="stat-value" id="inv-total-investido">R$ 0,00</span>
+          </div>
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-purple" id="inv-icon-atual"></span>
+            <span class="stat-label">Valor atual</span>
+            <span class="stat-value" id="inv-total-atual">R$ 0,00</span>
+          </div>
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-green" id="inv-rendimento-icon"></span>
+            <span class="stat-label">Rendimento</span>
+            <span class="stat-value" id="inv-rendimento">R$ 0,00</span>
+          </div>
+          <div class="card stat stat-card-v2">
+            <span class="stat-icon stat-icon-amber" id="inv-icon-pct"></span>
+            <span class="stat-label">Rendimento %</span>
+            <span class="stat-value" id="inv-rendimento-pct">0%</span>
+          </div>
         </div>
 
         <div class="charts-row">
-          <div class="panel">
+          <div class="panel panel-v2">
             <div class="panel-header"><h2>Distribuição por tipo</h2></div>
             <div class="chart-wrap" id="inv-donut"></div>
           </div>
-          <div class="panel">
+          <div class="panel panel-v2">
             <div class="panel-header"><h2>Posições</h2></div>
             <table class="table" id="tabela-investimentos">
               <thead><tr><th>Nome</th><th>Tipo</th><th>Investido</th><th>Atual</th><th>Rendimento</th><th></th></tr></thead>
@@ -293,6 +328,7 @@
           <h1>Extratos importados</h1>
           <button class="btn" id="btn-importar-ofx">+ Importar extrato</button>
         </header>
+        <p class="view-descricao">Importe faturas de cartão ou extratos de conta corrente (OFX ou CSV) pra categorizar os gastos automaticamente. Cadastre a conta em "Contas" primeiro — marque "É cartão" pra faturas, deixe desmarcado pra extrato bancário comum (ex: Pix).</p>
 
         <div class="extrato-controles">
           <div class="field" style="margin-bottom:0">
@@ -335,7 +371,7 @@
           </button>
           <div class="collapsible-content" id="regras-conteudo">
             <div style="display:flex; gap:8px; justify-content:flex-end; margin-bottom:12px;">
-              <button class="btn-small" id="btn-reaplicar-regras">🔁 Reaplicar às sem categoria</button>
+              <button class="btn-small" id="btn-reaplicar-regras"><span class="btn-icon-inline" id="reaplicar-icone"></span> Reaplicar às sem categoria</button>
               <button class="btn-small" id="btn-add-regra">+ Nova regra</button>
             </div>
             <p class="empty-hint" style="padding-top:0">Quando uma descrição do extrato contém o padrão, a categoria é aplicada sozinha nas próximas importações.</p>

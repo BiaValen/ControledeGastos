@@ -1,10 +1,12 @@
 {
   "name": "gastos",
+  "productName": "Gastos",
   "version": "1.0.0",
-  "description": "",
+  "description": "Controle de gastos pessoal, local e offline",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "dist": "electron-builder --win",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -12,9 +14,46 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "electron": "^43.2.0"
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "sharp": "^0.35.3"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.2"
+  },
+  "build": {
+    "appId": "com.biavalen.gastos",
+    "productName": "Gastos",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "!src/**/*.md",
+      "node_modules/**/*"
+    ],
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**"
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

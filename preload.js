@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('gastosAPI', {
   },
   extrato: {
     selecionarArquivo: () => ipcRenderer.invoke('extrato:selecionarArquivo'),
+    detectarMes: (contaId, caminho) => ipcRenderer.invoke('extrato:detectarMes', contaId, caminho),
     importar: (contaId, caminho, faturaAno, faturaMes) => ipcRenderer.invoke('extrato:importar', contaId, caminho, faturaAno, faturaMes),
     listTransacoes: (contaId, ano, mes) => ipcRenderer.invoke('extrato:listTransacoes', contaId, ano, mes),
     atualizarCategoria: (id, categoriaId, salvarRegra) => ipcRenderer.invoke('extrato:atualizarCategoria', id, categoriaId, salvarRegra),

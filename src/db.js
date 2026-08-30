@@ -2,13 +2,30 @@ const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
 
-const dataDir = path.join(__dirname, '..', 'data');
+// empacotado (.exe instalado): usa a pasta de dados do usuário (userData), que é
+// gravável mesmo quando o app fica instalado em Arquivos de Programas (somente leitura).
+// em desenvolvimento (npm start): mantém a pasta "data" ao lado do projeto, como sempre foi.
+function resolverDataDir() {
+  let electronApp = null;
+  try {
+    electronApp = require('electron').app;
+  } catch (_) {}
+  if (electronApp && electronApp.isPackaged) {
+    return path.join(electronApp.getPath('userData'), 'data');
+  }
+  return path.join(__dirname, '..', 'data');
+}
+
+const dataDir = resolverDataDir();
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
 const dbPath = path.join(dataDir, 'gastos.db');
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+// se duas instâncias do app abrirem ao mesmo tempo (ex: clique duplo no atalho),
+// evita que uma delas quebre na hora com "database is locked" — espera até 3s antes de desistir
+db.pragma('busy_timeout = 3000');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS categorias (

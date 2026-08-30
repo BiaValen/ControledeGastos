@@ -5,6 +5,10 @@ const api = require('./src/api');
 const { parseOfx } = require('./src/ofx');
 const { parseCsv } = require('./src/csv');
 
+// alguns drivers de vídeo no Windows não repintam a janela corretamente depois de
+// atualizações de conteúdo via IPC, deixando a tela "presa" nos valores antigos
+app.disableHardwareAcceleration();
+
 // detecta o encoding real do arquivo em vez de assumir um fixo:
 // CSV de banco costuma vir em UTF-8 (às vezes com BOM), OFX antigo costuma vir em latin1/cp1252
 function lerArquivoTexto(caminho) {
@@ -15,6 +19,24 @@ function lerArquivoTexto(caminho) {
   const comoUtf8 = buffer.toString('utf8');
   if (!comoUtf8.includes('�')) return comoUtf8;
   return buffer.toString('latin1');
+}
+
+// pega o ano/mês que aparece mais vezes nas transações, pra sugerir automaticamente
+// qual fatura/mês isso deve virar, em vez de depender do usuário lembrar e escolher certo
+function mesPredominante(transacoes) {
+  const contagem = {};
+  for (const t of transacoes) {
+    if (!t.data) continue;
+    const chave = t.data.slice(0, 7); // "AAAA-MM"
+    contagem[chave] = (contagem[chave] || 0) + 1;
+  }
+  let melhor = null;
+  for (const [chave, qtd] of Object.entries(contagem)) {
+    if (!melhor || qtd > melhor.qtd) melhor = { chave, qtd };
+  }
+  if (!melhor) return null;
+  const [ano, mes] = melhor.chave.split('-').map(Number);
+  return { ano, mes };
 }
 
 function registerHandlers() {
@@ -67,10 +89,18 @@ function registerHandlers() {
       if (resultado.canceled || resultado.filePaths.length === 0) return null;
       return resultado.filePaths[0];
     },
+    'extrato:detectarMes': (_e, contaId, caminhoArquivo) => {
+      const conteudo = lerArquivoTexto(caminhoArquivo);
+      const ehCsv = caminhoArquivo.toLowerCase().endsWith('.csv');
+      const conta = api.getConta(contaId);
+      const transacoes = ehCsv ? parseCsv(conteudo, !!(conta && conta.eh_cartao)) : parseOfx(conteudo);
+      return mesPredominante(transacoes);
+    },
     'extrato:importar': (_e, contaId, caminhoArquivo, faturaAno, faturaMes) => {
       const conteudo = lerArquivoTexto(caminhoArquivo);
       const ehCsv = caminhoArquivo.toLowerCase().endsWith('.csv');
-      const transacoes = ehCsv ? parseCsv(conteudo) : parseOfx(conteudo);
+      const conta = api.getConta(contaId);
+      const transacoes = ehCsv ? parseCsv(conteudo, !!(conta && conta.eh_cartao)) : parseOfx(conteudo);
       return api.importarExtrato(contaId, transacoes, faturaAno, faturaMes);
     },
     'extrato:listTransacoes': (_e, contaId, ano, mes) => api.listTransacoes(contaId, ano, mes),
@@ -114,14 +144,30 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
 }
 
-app.whenReady().then(() => {
-  registerHandlers();
-  createWindow();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+// evita abrir duas instâncias ao mesmo tempo (ex: clique duplo no atalho): a segunda
+// tentativa só foca a janela já aberta, em vez de criar uma segunda conexão com o banco
+const temLock = app.requestSingleInstanceLock();
+if (!temLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const janelas = BrowserWindow.getAllWindows();
+    if (janelas.length > 0) {
+      const win = janelas[0];
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
   });
-});
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+  app.whenReady().then(() => {
+    registerHandlers();
+    createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+}
