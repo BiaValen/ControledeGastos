@@ -49,8 +49,17 @@ contextBridge.exposeInMainWorld('gastosAPI', {
     listTransacoes: (contaId, ano, mes) => ipcRenderer.invoke('extrato:listTransacoes', contaId, ano, mes),
     atualizarCategoria: (id, categoriaId, salvarRegra) => ipcRenderer.invoke('extrato:atualizarCategoria', id, categoriaId, salvarRegra),
     removerTransacao: (id) => ipcRenderer.invoke('extrato:removerTransacao', id),
+    removerTransacoesDoMes: (contaId, ano, mes) => ipcRenderer.invoke('extrato:removerTransacoesDoMes', contaId, ano, mes),
+    criarManual: (contaId, dados, faturaAno, faturaMes) => ipcRenderer.invoke('extrato:criarManual', contaId, dados, faturaAno, faturaMes),
+    criarParcelada: (contaId, dados, numParcelas, faturaAno, faturaMes) => ipcRenderer.invoke('extrato:criarParcelada', contaId, dados, numParcelas, faturaAno, faturaMes),
     somaDoMes: (contaId, ano, mes) => ipcRenderer.invoke('extrato:somaDoMes', contaId, ano, mes),
     aplicarSomaAoLancamento: (contaId, ano, mes) => ipcRenderer.invoke('extrato:aplicarSomaAoLancamento', contaId, ano, mes),
+  },
+  assinaturas: {
+    list: (contaId) => ipcRenderer.invoke('assinaturas:list', contaId),
+    criar: (dados) => ipcRenderer.invoke('assinaturas:criar', dados),
+    atualizar: (id, dados) => ipcRenderer.invoke('assinaturas:atualizar', id, dados),
+    remover: (id) => ipcRenderer.invoke('assinaturas:remover', id),
   },
   resumo: {
     mes: (ano, mes) => ipcRenderer.invoke('resumo:mes', ano, mes),
@@ -69,5 +78,9 @@ contextBridge.exposeInMainWorld('gastosAPI', {
   },
   historico: {
     meses: () => ipcRenderer.invoke('historico:meses'),
+  },
+  config: {
+    getSaldoInicio: () => ipcRenderer.invoke('config:getSaldoInicio'),
+    setSaldoInicio: (ano, mes) => ipcRenderer.invoke('config:setSaldoInicio', ano, mes),
   },
 });

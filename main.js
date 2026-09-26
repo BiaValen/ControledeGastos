@@ -22,8 +22,10 @@ function lerArquivoTexto(caminho) {
 }
 
 // pega o ano/mês que aparece mais vezes nas transações, pra sugerir automaticamente
-// qual fatura/mês isso deve virar, em vez de depender do usuário lembrar e escolher certo
-function mesPredominante(transacoes) {
+// qual fatura/mês isso deve virar, em vez de depender do usuário lembrar e escolher certo.
+// cartão de crédito: a compra é feita num mês, mas a fatura fecha e vence no mês seguinte —
+// então o mês da fatura é sempre o mês seguinte ao das compras, não o mesmo mês.
+function mesPredominante(transacoes, ehCartao) {
   const contagem = {};
   for (const t of transacoes) {
     if (!t.data) continue;
@@ -35,7 +37,11 @@ function mesPredominante(transacoes) {
     if (!melhor || qtd > melhor.qtd) melhor = { chave, qtd };
   }
   if (!melhor) return null;
-  const [ano, mes] = melhor.chave.split('-').map(Number);
+  let [ano, mes] = melhor.chave.split('-').map(Number);
+  if (ehCartao) {
+    mes += 1;
+    if (mes > 12) { mes = 1; ano += 1; }
+  }
   return { ano, mes };
 }
 
@@ -93,8 +99,9 @@ function registerHandlers() {
       const conteudo = lerArquivoTexto(caminhoArquivo);
       const ehCsv = caminhoArquivo.toLowerCase().endsWith('.csv');
       const conta = api.getConta(contaId);
-      const transacoes = ehCsv ? parseCsv(conteudo, !!(conta && conta.eh_cartao)) : parseOfx(conteudo);
-      return mesPredominante(transacoes);
+      const ehCartao = !!(conta && conta.eh_cartao);
+      const transacoes = ehCsv ? parseCsv(conteudo, ehCartao) : parseOfx(conteudo);
+      return mesPredominante(transacoes, ehCartao);
     },
     'extrato:importar': (_e, contaId, caminhoArquivo, faturaAno, faturaMes) => {
       const conteudo = lerArquivoTexto(caminhoArquivo);
@@ -106,11 +113,22 @@ function registerHandlers() {
     'extrato:listTransacoes': (_e, contaId, ano, mes) => api.listTransacoes(contaId, ano, mes),
     'extrato:atualizarCategoria': (_e, id, categoriaId, salvarRegra) => api.atualizarCategoriaTransacao(id, categoriaId, salvarRegra),
     'extrato:removerTransacao': (_e, id) => api.removerTransacao(id),
+    'extrato:removerTransacoesDoMes': (_e, contaId, ano, mes) => api.removerTransacoesDoMes(contaId, ano, mes),
+    'extrato:criarManual': (_e, contaId, dados, faturaAno, faturaMes) => api.criarTransacaoManual(contaId, dados, faturaAno, faturaMes),
+    'extrato:criarParcelada': (_e, contaId, dados, numParcelas, faturaAno, faturaMes) => api.criarTransacaoParcelada(contaId, dados, numParcelas, faturaAno, faturaMes),
+
+    'assinaturas:list': (_e, contaId) => api.listAssinaturas(contaId),
+    'assinaturas:criar': (_e, dados) => api.criarAssinatura(dados),
+    'assinaturas:atualizar': (_e, id, dados) => api.atualizarAssinatura(id, dados),
+    'assinaturas:remover': (_e, id) => api.removerAssinatura(id),
     'extrato:somaDoMes': (_e, contaId, ano, mes) => api.somaTransacoesDoMes(contaId, ano, mes),
     'extrato:aplicarSomaAoLancamento': (_e, contaId, ano, mes) => api.aplicarSomaAoLancamento(contaId, ano, mes),
 
     'resumo:mes': (_e, ano, mes) => api.resumoMes(ano, mes),
     'historico:meses': () => api.listHistoricoMeses(),
+
+    'config:getSaldoInicio': () => api.getSaldoInicio(),
+    'config:setSaldoInicio': (_e, ano, mes) => api.setSaldoInicio(ano, mes),
 
     'dashboard:gastosPorCategoria': (_e, ano, mes, contaId) => api.gastosPorCategoria(ano, mes, contaId),
     'dashboard:topEstabelecimentos': (_e, ano, mes, contaId) => api.topEstabelecimentos(ano, mes, contaId),

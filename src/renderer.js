@@ -86,6 +86,7 @@ document.getElementById('btn-theme-toggle').addEventListener('click', () => {
 // ---------------- Navegação de views ----------------
 document.querySelectorAll('.nav-item').forEach((btn) => {
   btn.addEventListener('click', () => {
+    if (!btn.dataset.view) return; // item do menu de configurações sem view própria (ex: abre um modal)
     document.querySelectorAll('.nav-item').forEach((b) => b.classList.remove('active'));
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
     btn.classList.add('active');
@@ -114,6 +115,24 @@ document.addEventListener('click', (e) => {
   if (menu.classList.contains('aberto') && !e.target.closest('.settings-wrap')) {
     menu.classList.remove('aberto');
   }
+});
+
+document.getElementById('btn-config-saldo-inicio').addEventListener('click', async () => {
+  const atual = await api.config.getSaldoInicio();
+  abrirModal('Início do saldo acumulado', [
+    { key: 'ano', label: 'Ano (deixe em branco pra somar tudo desde o início)', type: 'number', step: '1' },
+    { key: 'mes', label: 'Mês (1 a 12)', type: 'number', step: '1' },
+  ], atual || {}, async (dados) => {
+    const ano = dados.ano ? parseInt(dados.ano) : null;
+    const mes = dados.mes ? parseInt(dados.mes) : null;
+    await api.config.setSaldoInicio(ano, mes);
+    mostrarToast(ano && mes
+      ? `A partir de agora, o saldo acumulado só soma a partir de ${MESES[mes - 1]}/${ano}.`
+      : 'Início removido — o saldo acumulado volta a somar tudo desde o primeiro mês com dados.');
+    if (document.getElementById('view-mes').classList.contains('active')) carregarMes();
+    if (document.getElementById('view-dashboard').classList.contains('active')) carregarDashboard();
+    if (document.getElementById('view-historico').classList.contains('active')) carregarHistorico();
+  });
 });
 
 // ---------------- Modal genérico ----------------
@@ -242,6 +261,9 @@ async function carregarMes() {
   const saldoEl = document.getElementById('stat-saldo');
   saldoEl.textContent = fmtMoeda(resumo.saldo);
   saldoEl.className = 'stat-value ' + (resumo.saldo >= 0 ? 'positivo' : 'alerta');
+  document.getElementById('stat-saldo-anterior').textContent = resumo.saldoAnterior
+    ? `inclui ${fmtMoeda(resumo.saldoAnterior)} de antes`
+    : '';
 
   const tbodyContas = document.querySelector('#tabela-contas tbody');
   tbodyContas.innerHTML = '';
@@ -296,8 +318,8 @@ async function carregarMes() {
     el.addEventListener('click', () => abrirModalGanho(ganhos.find((g) => g.id === parseInt(el.dataset.id)), carregarMes));
   });
   tbodyGanhos.querySelectorAll('[data-action="del-ganho"]').forEach((el) => {
-    el.addEventListener('click', async (e) => {
-      await api.ganhos.remover(parseInt(e.target.dataset.id));
+    el.addEventListener('click', async () => {
+      await api.ganhos.remover(parseInt(el.dataset.id));
       carregarMes();
     });
   });
@@ -318,8 +340,8 @@ async function carregarMes() {
     tbodyAvulsos.appendChild(tr);
   });
   tbodyAvulsos.querySelectorAll('[data-action="del-avulso"]').forEach((el) => {
-    el.addEventListener('click', async (e) => {
-      await api.gastosAvulsos.remover(parseInt(e.target.dataset.id));
+    el.addEventListener('click', async () => {
+      await api.gastosAvulsos.remover(parseInt(el.dataset.id));
       carregarMes();
     });
   });
@@ -455,8 +477,8 @@ async function carregarGanhosPagina() {
     el.addEventListener('click', () => abrirModalGanho(ganhos.find((g) => g.id === parseInt(el.dataset.id)), carregarGanhosPagina));
   });
   tbody.querySelectorAll('[data-action="del-ganho-pagina"]').forEach((el) => {
-    el.addEventListener('click', async (e) => {
-      await api.ganhos.remover(parseInt(e.target.dataset.id));
+    el.addEventListener('click', async () => {
+      await api.ganhos.remover(parseInt(el.dataset.id));
       carregarGanhosPagina();
     });
   });
@@ -464,12 +486,31 @@ async function carregarGanhosPagina() {
 document.getElementById('btn-add-ganho-pagina').addEventListener('click', () => abrirModalGanho(null, carregarGanhosPagina));
 
 // ---------------- VIEW: Contas (cadastro) ----------------
+let estadoContas = { categoriaId: '', tipo: '', cartao: '', ativa: '1' };
+
+function popularSelectCategoriaContas() {
+  const select = document.getElementById('contas-filtro-categoria');
+  const valorAtual = estadoContas.categoriaId;
+  const opcoes = categoriasCache.filter((c) => c.tipo === 'despesa');
+  select.innerHTML = '<option value="">Todas</option>'
+    + opcoes.map((c) => `<option value="${c.id}">${c.nome}</option>`).join('');
+  select.value = valorAtual || '';
+}
+
 async function carregarContasCadastro() {
   categoriasCache = await api.categorias.list();
-  const contas = await api.contas.list(false);
+  popularSelectCategoriaContas();
+  const todasContas = await api.contas.list(false);
+  const contas = todasContas.filter((c) => {
+    if (estadoContas.categoriaId && c.categoria_id !== parseInt(estadoContas.categoriaId)) return false;
+    if (estadoContas.tipo && c.tipo !== estadoContas.tipo) return false;
+    if (estadoContas.cartao !== '' && Number(c.eh_cartao) !== parseInt(estadoContas.cartao)) return false;
+    if (estadoContas.ativa !== '' && Number(c.ativa) !== parseInt(estadoContas.ativa)) return false;
+    return true;
+  });
   const tbody = document.querySelector('#tabela-contas-cadastro tbody');
   tbody.innerHTML = contas.length === 0
-    ? '<tr><td colspan="8" class="empty-hint">Nenhuma conta cadastrada ainda.</td></tr>'
+    ? `<tr><td colspan="8" class="empty-hint">${todasContas.length === 0 ? 'Nenhuma conta cadastrada ainda.' : 'Nenhuma conta encontrada com esse filtro.'}</td></tr>`
     : '';
   contas.forEach((c) => {
     const tr = document.createElement('tr');
@@ -507,7 +548,15 @@ async function carregarContasCadastro() {
   });
   tbody.querySelectorAll('[data-action="del-conta"]').forEach((el) => {
     el.addEventListener('click', async () => {
-      await api.contas.remover(parseInt(el.dataset.id));
+      const conta = contas.find((c) => c.id === parseInt(el.dataset.id));
+      const confirmado = await confirmarAcao(`Excluir a conta "${conta.nome}"?`);
+      if (!confirmado) return;
+      const resultado = await api.contas.remover(conta.id);
+      if (resultado.desativada) {
+        mostrarToast(`"${conta.nome}" já tem lançamentos, então foi desativada (não excluída) pra preservar o histórico. Marque "Ativa" de novo se precisar reativar.`);
+      } else {
+        mostrarToast(`"${conta.nome}" excluída.`);
+      }
       carregarContasCadastro();
     });
   });
@@ -529,6 +578,22 @@ function abrirModalConta(conta) {
   });
 }
 document.getElementById('btn-add-conta').addEventListener('click', () => abrirModalConta(null));
+document.getElementById('contas-filtro-categoria').addEventListener('change', (e) => {
+  estadoContas.categoriaId = e.target.value;
+  carregarContasCadastro();
+});
+document.getElementById('contas-filtro-tipo').addEventListener('change', (e) => {
+  estadoContas.tipo = e.target.value;
+  carregarContasCadastro();
+});
+document.getElementById('contas-filtro-cartao').addEventListener('change', (e) => {
+  estadoContas.cartao = e.target.value;
+  carregarContasCadastro();
+});
+document.getElementById('contas-filtro-ativa').addEventListener('change', (e) => {
+  estadoContas.ativa = e.target.value;
+  carregarContasCadastro();
+});
 
 // ---------------- VIEW: Categorias ----------------
 async function carregarCategorias() {
@@ -876,6 +941,9 @@ async function carregarDashboard() {
   const saldoIconEl = document.getElementById('dash-icon-saldo');
   saldoIconEl.innerHTML = ICONES.carteira;
   saldoIconEl.className = 'stat-icon ' + (resumo.saldo >= 0 ? 'stat-icon-blue' : 'stat-icon-red');
+  document.getElementById('dash-saldo-anterior').textContent = resumo.saldoAnterior
+    ? `inclui ${fmtMoeda(resumo.saldoAnterior)} de antes`
+    : '';
 
   renderDonut('dash-donut', categorias);
 
@@ -934,10 +1002,16 @@ function popularSelectCategoriaFiltro() {
   select.value = estadoExtrato.categoriaFiltro || '';
 }
 
+// se essa função for chamada de novo antes da anterior terminar (ex: cliques rápidos em
+// sequência), só o resultado da chamada mais recente pode valer — senão uma carga antiga
+// e mais lenta pode terminar depois e sobrescrever a tela com dado desatualizado, dando a
+// impressão de que uma exclusão/edição "não funcionou".
+let extratoCargaSeq = 0;
 async function carregarTransacoesExtrato() {
+  const minhaSeq = ++extratoCargaSeq;
   document.getElementById('extrato-mes-titulo').textContent = `${MESES[estadoExtrato.mes - 1]} de ${estadoExtrato.ano}`;
   if (!estadoExtrato.contaId) {
-    document.querySelector('#tabela-transacoes tbody').innerHTML = '<tr><td colspan="5" class="empty-hint">Cadastre uma conta primeiro (aba Contas).</td></tr>';
+    document.querySelector('#tabela-transacoes tbody').innerHTML = '<tr><td colspan="6" class="empty-hint">Cadastre uma conta primeiro (aba Contas).</td></tr>';
     return;
   }
   categoriasCache = await api.categorias.list();
@@ -946,6 +1020,7 @@ async function carregarTransacoesExtrato() {
     api.extrato.listTransacoes(estadoExtrato.contaId, estadoExtrato.ano, estadoExtrato.mes),
     api.extrato.somaDoMes(estadoExtrato.contaId, estadoExtrato.ano, estadoExtrato.mes),
   ]);
+  if (minhaSeq !== extratoCargaSeq) return; // uma chamada mais nova já está em andamento — descarta esse resultado desatualizado
 
   document.getElementById('extrato-total-gasto').textContent = fmtMoeda(soma);
   document.getElementById('extrato-sem-categoria').textContent = todasTransacoes.filter((t) => t.valor < 0 && !t.categoria_id).length;
@@ -959,7 +1034,7 @@ async function carregarTransacoesExtrato() {
   const opcoesGanho = opcoesCategorias('ganho');
   const tbody = document.querySelector('#tabela-transacoes tbody');
   tbody.innerHTML = transacoes.length === 0
-    ? '<tr><td colspan="5" class="empty-hint">Nenhuma transação pra mostrar com esse filtro.</td></tr>'
+    ? '<tr><td colspan="6" class="empty-hint">Nenhuma transação pra mostrar com esse filtro.</td></tr>'
     : '';
   transacoes.forEach((t) => {
     const tr = document.createElement('tr');
@@ -969,6 +1044,7 @@ async function carregarTransacoesExtrato() {
       ${opcoes.map((o) => `<option value="${o.value}" data-cor="${o.cor}" ${o.value === t.categoria_id ? 'selected' : ''}>${o.label}</option>`).join('')}
     </select>`;
     tr.innerHTML = `
+      <td><input type="checkbox" class="checkbox" data-id="${t.id}" data-action="selecionar-transacao" /></td>
       <td>${t.data.slice(8, 10)}/${t.data.slice(5, 7)}</td>
       <td>${t.descricao}</td>
       <td>${selectHtml}</td>
@@ -984,6 +1060,7 @@ async function carregarTransacoesExtrato() {
     const totalFiltrado = transacoes.reduce((s, t) => s + t.valor, 0);
     const trTotal = document.createElement('tr');
     trTotal.innerHTML = `
+      <td></td>
       <td colspan="3" style="text-align:right; font-weight:600; color:var(--text-dim);">Total</td>
       <td style="font-weight:600; color:${totalFiltrado < 0 ? 'var(--red)' : 'var(--green)'}">${fmtMoeda(totalFiltrado)}</td>
       <td></td>
@@ -1000,8 +1077,8 @@ async function carregarTransacoesExtrato() {
     });
   });
   tbody.querySelectorAll('[data-action="salvar-regra-transacao"]').forEach((el) => {
-    el.addEventListener('click', async (e) => {
-      const id = parseInt(e.target.dataset.id);
+    el.addEventListener('click', async () => {
+      const id = parseInt(el.dataset.id);
       const select = tbody.querySelector(`select[data-id="${id}"]`);
       const categoriaId = select.value ? parseInt(select.value) : null;
       if (!categoriaId) { mostrarToast('Escolhe uma categoria antes de salvar a regra.'); return; }
@@ -1011,8 +1088,11 @@ async function carregarTransacoesExtrato() {
     });
   });
   tbody.querySelectorAll('[data-action="del-transacao"]').forEach((el) => {
-    el.addEventListener('click', async (e) => {
-      await api.extrato.removerTransacao(parseInt(e.target.dataset.id));
+    el.addEventListener('click', async () => {
+      const resultado = await api.extrato.removerTransacao(parseInt(el.dataset.id));
+      if (resultado.assinaturaCancelada) {
+        mostrarToast('Excluída — como era uma assinatura, ela também foi cancelada e não vai mais se repetir.');
+      }
       carregarTransacoesExtrato();
     });
   });
@@ -1035,8 +1115,8 @@ async function carregarRegras() {
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('[data-action="del-regra"]').forEach((el) => {
-    el.addEventListener('click', async (e) => {
-      await api.regras.remover(parseInt(e.target.dataset.id));
+    el.addEventListener('click', async () => {
+      await api.regras.remover(parseInt(el.dataset.id));
       carregarRegras();
     });
   });
@@ -1115,6 +1195,57 @@ document.getElementById('btn-reaplicar-regras').addEventListener('click', async 
   carregarTransacoesExtrato();
 });
 
+document.getElementById('btn-add-transacao-manual').addEventListener('click', () => {
+  if (!estadoExtrato.contaId) { mostrarToast('Escolha uma conta primeiro.'); return; }
+  abrirModal('Nova transação', [
+    { key: 'descricao', label: 'Descrição', type: 'text' },
+    { key: 'valor', label: 'Valor (negativo = gasto, positivo = entrada)', type: 'number', step: '0.01' },
+    { key: 'data', label: 'Data', type: 'date' },
+    { key: 'categoria_id', label: 'Categoria', type: 'select', options: [...opcoesCategorias('despesa'), ...opcoesCategorias('ganho')] },
+    {
+      key: 'tipo_lancamento', label: 'Tipo', type: 'select', options: [
+        { value: 'unico', label: 'Único' },
+        { value: 'assinatura', label: 'Assinatura (repete todo mês sozinha)' },
+        { value: 'parcelado', label: 'Parcelado (gera as próximas faturas sozinho)' },
+      ],
+    },
+    { key: 'parcelas', label: 'Número de parcelas (só se for parcelado)', type: 'number', step: '1' },
+  ], { data: dataDefault(), tipo_lancamento: 'unico' }, async (dados) => {
+    if (dados.tipo_lancamento === 'assinatura') {
+      await api.assinaturas.criar({ conta_id: estadoExtrato.contaId, descricao: dados.descricao, valor: dados.valor, categoria_id: dados.categoria_id });
+      mostrarToast(`Assinatura "${dados.descricao}" criada — vai aparecer automaticamente todo mês a partir de agora.`);
+    } else if (dados.tipo_lancamento === 'parcelado') {
+      const numParcelas = parseInt(dados.parcelas) || 1;
+      await api.extrato.criarParcelada(estadoExtrato.contaId, dados, numParcelas, estadoExtrato.ano, estadoExtrato.mes);
+      mostrarToast(`Lançado em ${numParcelas} parcela(s), a partir de ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano}.`);
+    } else {
+      await api.extrato.criarManual(estadoExtrato.contaId, dados, estadoExtrato.ano, estadoExtrato.mes);
+    }
+    carregarTransacoesExtrato();
+  });
+});
+
+document.getElementById('btn-excluir-selecionadas-extrato').addEventListener('click', async () => {
+  const marcadas = Array.from(document.querySelectorAll('[data-action="selecionar-transacao"]:checked'));
+  const ids = marcadas.map((el) => parseInt(el.dataset.id));
+  if (ids.length === 0) { mostrarToast('Marque a caixinha das transações que quer excluir primeiro.'); return; }
+  const confirmado = await confirmarAcao(`Excluir ${ids.length} transação(ões) selecionada(s)?`);
+  if (!confirmado) return;
+  const resultados = await Promise.all(ids.map((id) => api.extrato.removerTransacao(id)));
+  const qtdAssinaturas = resultados.filter((r) => r.assinaturaCancelada).length;
+  mostrarToast(`${ids.length} transação(ões) excluída(s).` + (qtdAssinaturas > 0 ? ` ${qtdAssinaturas} assinatura(s) cancelada(s) — não vão mais se repetir.` : ''));
+  carregarTransacoesExtrato();
+});
+
+document.getElementById('btn-apagar-tudo-extrato').addEventListener('click', async () => {
+  if (!estadoExtrato.contaId) return;
+  const confirmado = await confirmarAcao(`Apagar TODAS as transações de ${MESES[estadoExtrato.mes - 1]}/${estadoExtrato.ano} dessa conta? Isso não pode ser desfeito.`);
+  if (!confirmado) return;
+  const resultado = await api.extrato.removerTransacoesDoMes(estadoExtrato.contaId, estadoExtrato.ano, estadoExtrato.mes);
+  mostrarToast(`${resultado.removidas} transação(ões) apagada(s).`);
+  carregarTransacoesExtrato();
+});
+
 // ---------------- VIEW: Investimentos ----------------
 const TIPOS_INVESTIMENTO = [
   { nome: 'Renda Fixa', cor: '#0ea5e9' },
@@ -1189,8 +1320,8 @@ async function carregarInvestimentos() {
     el.addEventListener('click', () => abrirModalInvestimento(investimentos.find((i) => i.id === parseInt(el.dataset.id))));
   });
   tbody.querySelectorAll('[data-action="del-investimento"]').forEach((el) => {
-    el.addEventListener('click', async (e) => {
-      await api.investimentos.remover(parseInt(e.target.dataset.id));
+    el.addEventListener('click', async () => {
+      await api.investimentos.remover(parseInt(el.dataset.id));
       carregarInvestimentos();
     });
   });

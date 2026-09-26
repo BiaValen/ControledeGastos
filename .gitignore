@@ -11,6 +11,9 @@ dist/
 out/
 release/
 
+# atalho local (caminho fixo pro Desktop de cada máquina)
+Abrir Gastos.lnk
+
 # logs e lixo de SO
 *.log
 npm-debug.log*

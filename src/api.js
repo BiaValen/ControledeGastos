@@ -1,4 +1,5 @@
 const db = require('./db');
+const { finalizarHashes } = require('./transacao-utils');
 
 // ---------- Categorias ----------
 function listCategorias(tipo) {
@@ -258,7 +259,50 @@ function importarExtrato(contaId, transacoesParsed, faturaAno, faturaMes) {
   tx(transacoesParsed);
   return { importadas, total: transacoesParsed.length };
 }
+// ---------- Assinaturas (cobrança recorrente de cartão, ex: Netflix) ----------
+function listAssinaturas(contaId) {
+  const sql = `SELECT assinaturas.*, categorias.nome AS categoria_nome, categorias.cor AS categoria_cor
+               FROM assinaturas LEFT JOIN categorias ON categorias.id = assinaturas.categoria_id
+               ${contaId ? 'WHERE assinaturas.conta_id = ?' : ''}
+               ORDER BY assinaturas.descricao`;
+  return contaId ? db.prepare(sql).all(contaId) : db.prepare(sql).all();
+}
+function criarAssinatura(dados) {
+  const info = db.prepare(
+    'INSERT INTO assinaturas (conta_id, descricao, valor, categoria_id, ativa) VALUES (?, ?, ?, ?, 1)'
+  ).run(dados.conta_id, dados.descricao, dados.valor, dados.categoria_id || null);
+  return info.lastInsertRowid;
+}
+function atualizarAssinatura(id, dados) {
+  db.prepare(
+    'UPDATE assinaturas SET descricao = ?, valor = ?, categoria_id = ?, ativa = ? WHERE id = ?'
+  ).run(dados.descricao, dados.valor, dados.categoria_id || null, dados.ativa ? 1 : 0, id);
+}
+function removerAssinatura(id) {
+  db.prepare('DELETE FROM assinaturas WHERE id = ?').run(id);
+}
+// garante que cada assinatura ativa da conta já tenha uma transação gerada nessa fatura
+// (usa o valor ATUAL da assinatura — editar o valor só afeta os meses seguintes)
+function garantirAssinaturasDoMes(contaId, ano, mes) {
+  const assinaturasAtivas = db.prepare('SELECT * FROM assinaturas WHERE conta_id = ? AND ativa = 1').all(contaId);
+  const existe = db.prepare('SELECT 1 FROM transacoes_importadas WHERE assinatura_id = ? AND fatura_ano = ? AND fatura_mes = ?');
+  const insert = db.prepare(`
+    INSERT INTO transacoes_importadas (conta_id, data, descricao, valor, categoria_id, hash, fatura_ano, fatura_mes, assinatura_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const tx = db.transaction((assinaturas) => {
+    for (const a of assinaturas) {
+      if (existe.get(a.id, ano, mes)) continue;
+      const data = `${ano}-${String(mes).padStart(2, '0')}-01`;
+      const [comHash] = finalizarHashes([{ data, valor: a.valor, descricao: a.descricao }]);
+      insert.run(contaId, data, a.descricao, a.valor, a.categoria_id, comHash.hash, ano, mes, a.id);
+    }
+  });
+  tx(assinaturasAtivas);
+}
+
 function listTransacoes(contaId, ano, mes) {
+  garantirAssinaturasDoMes(contaId, ano, mes);
   return db.prepare(`
     SELECT transacoes_importadas.*, categorias.nome AS categoria_nome, categorias.cor AS categoria_cor
     FROM transacoes_importadas LEFT JOIN categorias ON categorias.id = transacoes_importadas.categoria_id
@@ -280,7 +324,58 @@ function atualizarCategoriaTransacao(id, categoriaId, salvarRegra) {
   }
 }
 function removerTransacao(id) {
+  // se essa transação veio de uma assinatura ativa, só apagar ela não resolve —
+  // a assinatura vai gerar ela de novo sozinha no próximo carregamento. Cancela
+  // a assinatura também, senão a exclusão parece nunca "pegar".
+  const transacao = db.prepare('SELECT assinatura_id FROM transacoes_importadas WHERE id = ?').get(id);
+  if (transacao && transacao.assinatura_id) {
+    db.prepare('UPDATE assinaturas SET ativa = 0 WHERE id = ?').run(transacao.assinatura_id);
+  }
   db.prepare('DELETE FROM transacoes_importadas WHERE id = ?').run(id);
+  return { assinaturaCancelada: !!(transacao && transacao.assinatura_id) };
+}
+// pra lançar na mão uns poucos itens, sem precisar de um arquivo de extrato pra importar
+function criarTransacaoManual(contaId, dados, faturaAno, faturaMes) {
+  const [comHash] = finalizarHashes([{ data: dados.data, valor: dados.valor, descricao: dados.descricao }]);
+  const info = db.prepare(`
+    INSERT INTO transacoes_importadas (conta_id, data, descricao, valor, categoria_id, hash, fatura_ano, fatura_mes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(contaId, dados.data, dados.descricao, dados.valor, dados.categoria_id || null, comHash.hash, faturaAno, faturaMes);
+  return info.lastInsertRowid;
+}
+// lança uma compra parcelada de uma vez: cria uma transação em cada uma das próximas
+// faturas, com "(Parcela X/N)" na descrição — não precisa relançar mês a mês na mão
+function criarTransacaoParcelada(contaId, dados, numParcelas, faturaAnoInicial, faturaMesInicial) {
+  const insert = db.prepare(`
+    INSERT INTO transacoes_importadas (conta_id, data, descricao, valor, categoria_id, hash, fatura_ano, fatura_mes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  let ano = faturaAnoInicial, mes = faturaMesInicial;
+  const ids = [];
+  const tx = db.transaction(() => {
+    for (let i = 1; i <= numParcelas; i++) {
+      const descricaoParcela = `${dados.descricao} (Parcela ${i}/${numParcelas})`;
+      const [comHash] = finalizarHashes([{ data: dados.data, valor: dados.valor, descricao: descricaoParcela }]);
+      const info = insert.run(contaId, dados.data, descricaoParcela, dados.valor, dados.categoria_id || null, comHash.hash, ano, mes);
+      ids.push(info.lastInsertRowid);
+      mes += 1;
+      if (mes > 12) { mes = 1; ano += 1; }
+    }
+  });
+  tx();
+  return ids;
+}
+function removerTransacoesDoMes(contaId, ano, mes) {
+  // cancela qualquer assinatura cuja transação desse mês está sendo apagada aqui,
+  // senão elas voltariam sozinhas no próximo carregamento
+  db.prepare(`
+    UPDATE assinaturas SET ativa = 0 WHERE id IN (
+      SELECT assinatura_id FROM transacoes_importadas
+      WHERE conta_id = ? AND fatura_ano = ? AND fatura_mes = ? AND assinatura_id IS NOT NULL
+    )
+  `).run(contaId, ano, mes);
+  const info = db.prepare('DELETE FROM transacoes_importadas WHERE conta_id = ? AND fatura_ano = ? AND fatura_mes = ?').run(contaId, ano, mes);
+  return { removidas: info.changes };
 }
 // soma só os débitos (valores negativos no extrato = gasto); pagamentos/créditos não entram
 function somaTransacoesDoMes(contaId, ano, mes) {
@@ -298,6 +393,26 @@ function aplicarSomaAoLancamento(contaId, ano, mes) {
   return soma;
 }
 
+// ---------- Configurações (chave/valor simples) ----------
+function getConfig(chave) {
+  const row = db.prepare('SELECT valor FROM configuracoes WHERE chave = ?').get(chave);
+  return row ? row.valor : null;
+}
+function setConfig(chave, valor) {
+  db.prepare('INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor').run(chave, valor);
+}
+// mês a partir do qual o saldo acumulado passa a somar os meses anteriores — meses antes
+// desse ponto continuam existindo e visíveis, só não entram na conta do saldo corrido
+function getSaldoInicio() {
+  const valor = getConfig('saldo_inicio');
+  if (!valor) return null;
+  const [ano, mes] = valor.split('-').map(Number);
+  return { ano, mes };
+}
+function setSaldoInicio(ano, mes) {
+  setConfig('saldo_inicio', ano && mes ? `${ano}-${String(mes).padStart(2, '0')}` : '');
+}
+
 // ---------- Resumo / Histórico ----------
 function calcularResumo(lancs, ganhos, avulsos) {
   const totalContasPago = lancs.filter(l => l.pago).reduce((s, l) => s + (l.valor || 0), 0);
@@ -310,7 +425,9 @@ function calcularResumo(lancs, ganhos, avulsos) {
 
 // usada pela tela "Mês atual": pode gerar os lançamentos do mês se ainda não existirem
 function resumoMes(ano, mes) {
-  return calcularResumo(listLancamentosDoMes(ano, mes), listGanhosDoMes(ano, mes), listGastosAvulsosDoMes(ano, mes));
+  const base = calcularResumo(listLancamentosDoMes(ano, mes), listGanhosDoMes(ano, mes), listGastosAvulsosDoMes(ano, mes));
+  const saldoAnterior = saldoAcumuladoAte(ano, mes);
+  return { ...base, saldoAnterior, saldo: base.saldo + saldoAnterior };
 }
 
 // usada pelo Histórico: só lê o que já existe, nunca cria lançamento/ganho novo pra mês antigo
@@ -318,15 +435,43 @@ function resumoMesSomenteLeitura(ano, mes) {
   return calcularResumo(listLancamentosExistentesDoMes(ano, mes), listGanhosExistentesDoMes(ano, mes), listGastosAvulsosDoMes(ano, mes));
 }
 
-function listHistoricoMeses() {
-  const rows = db.prepare(`
+// todos os pares ano/mes que já têm algum dado, em ordem crescente (do mais antigo pro mais novo)
+function listMesesComDadosAsc() {
+  return db.prepare(`
     SELECT DISTINCT ano, mes FROM (
       SELECT ano, mes FROM lancamentos
       UNION SELECT CAST(substr(data,1,4) AS INTEGER) AS ano, CAST(substr(data,6,2) AS INTEGER) AS mes FROM ganhos
       UNION SELECT CAST(substr(data,1,4) AS INTEGER) AS ano, CAST(substr(data,6,2) AS INTEGER) AS mes FROM gastos_avulsos
-    ) ORDER BY ano DESC, mes DESC
+    ) ORDER BY ano ASC, mes ASC
   `).all();
-  return rows.map(r => ({ ano: r.ano, mes: r.mes, ...resumoMesSomenteLeitura(r.ano, r.mes) }));
+}
+
+// soma o saldo de todos os meses estritamente ANTERIORES a ano/mes — o que "sobrou"
+// (ou faltou) até ali, pra virar o saldo inicial do mês perguntado. Só leitura, nunca
+// cria lançamento pra mês nenhum. Se houver um "mês de início" configurado, meses antes
+// dele nunca entram na conta (mesmo que tenham dados) — é o ponto de corte escolhido.
+function saldoAcumuladoAte(ano, mes) {
+  const inicio = getSaldoInicio();
+  let anteriores = listMesesComDadosAsc().filter((c) => c.ano < ano || (c.ano === ano && c.mes < mes));
+  if (inicio) {
+    anteriores = anteriores.filter((c) => c.ano > inicio.ano || (c.ano === inicio.ano && c.mes >= inicio.mes));
+  }
+  return anteriores.reduce((soma, c) => soma + resumoMesSomenteLeitura(c.ano, c.mes).saldo, 0);
+}
+
+function listHistoricoMeses() {
+  const inicio = getSaldoInicio();
+  const chaves = listMesesComDadosAsc();
+  let acumulado = 0;
+  const ascComSaldo = chaves.map(({ ano, mes }) => {
+    const resumo = resumoMesSomenteLeitura(ano, mes);
+    const antesDoInicio = inicio && (ano < inicio.ano || (ano === inicio.ano && mes < inicio.mes));
+    const saldoAnterior = antesDoInicio ? 0 : acumulado;
+    if (!antesDoInicio) acumulado += resumo.saldo;
+    const saldoAcumulado = antesDoInicio ? resumo.saldo : acumulado;
+    return { ano, mes, ...resumo, saldoAnterior, saldo: saldoAcumulado };
+  });
+  return ascComSaldo.reverse(); // mais recente primeiro, como sempre foi
 }
 
 // ---------- Dashboard ----------
@@ -458,10 +603,13 @@ module.exports = {
   listGanhos, listGanhosDoMes, criarGanho, atualizarGanho, removerGanho,
   listGastosAvulsosDoMes, criarGastoAvulso, atualizarGastoAvulso, removerGastoAvulso,
   listRegras, criarRegra, removerRegra, categorizarPorRegra, reaplicarRegras,
-  importarExtrato, listTransacoes, atualizarCategoriaTransacao, removerTransacao,
+  importarExtrato, listTransacoes, atualizarCategoriaTransacao, removerTransacao, removerTransacoesDoMes,
+  criarTransacaoManual, criarTransacaoParcelada,
+  listAssinaturas, criarAssinatura, atualizarAssinatura, removerAssinatura,
   somaTransacoesDoMes, aplicarSomaAoLancamento,
   gastosPorCategoria, topEstabelecimentos,
   listInvestimentos, criarInvestimento, atualizarInvestimento, removerInvestimento,
   resumoInvestimentos, investimentosPorTipo,
   resumoMes, listHistoricoMeses,
+  getSaldoInicio, setSaldoInicio,
 };

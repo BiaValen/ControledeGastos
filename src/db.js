@@ -92,6 +92,15 @@ CREATE TABLE IF NOT EXISTS regras_categorizacao (
   categoria_id INTEGER NOT NULL REFERENCES categorias(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS assinaturas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conta_id INTEGER NOT NULL REFERENCES contas(id) ON DELETE CASCADE,
+  descricao TEXT NOT NULL,
+  valor REAL NOT NULL,
+  categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
+  ativa INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS transacoes_importadas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   conta_id INTEGER REFERENCES contas(id) ON DELETE SET NULL,
@@ -101,7 +110,8 @@ CREATE TABLE IF NOT EXISTS transacoes_importadas (
   categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
   hash TEXT NOT NULL,
   fatura_ano INTEGER,
-  fatura_mes INTEGER
+  fatura_mes INTEGER,
+  assinatura_id INTEGER REFERENCES assinaturas(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS investimentos (
@@ -113,6 +123,11 @@ CREATE TABLE IF NOT EXISTS investimentos (
   data_inicio TEXT,
   observacao TEXT,
   ativo INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS configuracoes (
+  chave TEXT PRIMARY KEY,
+  valor TEXT
 );
 `);
 
@@ -161,6 +176,12 @@ if (precisaRebuild) {
     db.exec('ALTER TABLE transacoes_importadas ADD COLUMN fatura_ano INTEGER');
     db.exec('ALTER TABLE transacoes_importadas ADD COLUMN fatura_mes INTEGER');
   }
+}
+
+// migração: bancos criados antes de assinaturas (cobranças recorrentes de cartão, tipo Netflix)
+const colunasTransacoes2 = db.prepare("PRAGMA table_info(transacoes_importadas)").all().map((c) => c.name);
+if (!colunasTransacoes2.includes('assinatura_id')) {
+  db.exec('ALTER TABLE transacoes_importadas ADD COLUMN assinatura_id INTEGER REFERENCES assinaturas(id) ON DELETE SET NULL');
 }
 
 const categoriaCount = db.prepare('SELECT COUNT(*) AS n FROM categorias').get().n;
